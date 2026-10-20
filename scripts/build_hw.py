@@ -1,23 +1,22 @@
 #!/usr/bin/env python3
 """
-笔顺字表生成：从 jsDelivr 的包文件清单提取 hanzi-writer-data 实际收录的字。
+笔顺字表生成：从本地 hanzi-writer-data 文件提取实际收录的字。
 用途：前端据此判断某字有无笔顺数据，避免对未收录的字发起必然 404 的请求。
-输入: data/hwfiles.json（jsDelivr package 文件清单，缺失时自动下载）
+输入: assets/hanzi-writer-data/；兼容旧的 data/hwfiles.json 文件清单
 输出: hwset.js —— const HW_SET = '<所有收录字连成的字符串>'
 """
-import json, os, urllib.request
+import json, os
 
 BASE = os.path.join(os.path.dirname(__file__), '..')
 DATA = os.path.join(BASE, 'data')
-API = 'https://data.jsdelivr.com/v1/packages/npm/hanzi-writer-data@2.0.1?structure=flat'
-
+LOCAL = os.path.join(BASE, 'assets', 'hanzi-writer-data')
 src = os.path.join(DATA, 'hwfiles.json')
-if not os.path.exists(src):
-    print('下载文件清单…')
-    with urllib.request.urlopen(API, timeout=90) as r:
-        with open(src, 'wb') as f:
-            f.write(r.read())
-files = json.load(open(src, encoding='utf-8')).get('files', [])
+if os.path.isdir(LOCAL):
+    files = [{'name': '/' + n} for n in os.listdir(LOCAL)]
+elif os.path.exists(src):
+    files = json.load(open(src, encoding='utf-8')).get('files', [])
+else:
+    raise FileNotFoundError('缺少本地笔顺数据，请先运行 python3 scripts/sync_offline_assets.py')
 
 def is_han(w):
     return len(w) == 1 and ('\u3400' <= w <= '\u9fff' or '\uf900' <= w <= '\ufaff')

@@ -1,7 +1,25 @@
-# 本地古文字字体
+# 本地字体与授权
 
 页面通过 `index.html` 的 `@font-face` 注册字体，再由每种书体的 CSS 绑定到字形卡片。
 仅注册或预加载字体不会改变卡片实际显示的书体。
+
+## 网页书法字体
+
+以下字体已保存到本地，保留原 WOFF2 文件及其字符分片；CSS 仅保留本地 WOFF2 源。
+页面按需加载字形，不再访问字体 CDN。
+
+| 字体 | 固定包版本 | 本地目录 |
+| --- | --- | --- |
+| 霞鹜文楷 Screen | cn-fontsource-lxgw-wen-kai-screen 1.0.6 | `web/kai/` |
+| 思源宋体 SC VF | cn-fontsource-source-han-serif-sc-vf-regular 1.0.1 | `web/song/` |
+| 马善政毛笔楷书 | @fontsource/ma-shan-zheng 5.3.1 | `web/mao/` |
+| 志莽行书 | @fontsource/zhi-mang-xing 5.3.0 | `web/xing/` |
+| 柳建毛草 | @fontsource/liu-jian-mao-cao 5.3.0 | `web/cao/` |
+
+这些字体采用 SIL OFL 1.1，原授权文件保存在各目录。
+霞鹜文楷和思源宋体的 npm 包未附许可证，因此分别补存了原作者仓库的 OFL 文件。
+下载包的完整性校验及本地文件哈希记录在 `assets/offline-manifest.json`；
+用 `python3 scripts/sync_offline_assets.py --check` 可离线校验。
 
 ## 甲骨文
 

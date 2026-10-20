@@ -6,7 +6,7 @@
 <title>汉字书体 · 中国古文字研究</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23b5493a'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23fffdf8' font-family='Kaiti SC,serif'%3E书%3C/text%3E%3C/svg%3E">
 <meta name="description" content="汉字书体查询：楷体、繁体、隶书、行书、草书、篆书多书体对照，支持拼音查询与部首检索，收录通用规范汉字表 8105 字">
-<!-- CDN 字体改为 JS 动态注入(见文末 loadFontCss)：不阻塞首屏渲染，主源 jsDelivr 失败自动切备源 unpkg -->
+<!-- 本地书法字体 CSS 动态装入，字形分片按需读取。 -->
 <style>
 :root{
   --paper:#f6f2e9; --card:#fffdf8; --line:#e5ddcc; --ink:#2d2a24; --ink2:#6f6858;
@@ -341,7 +341,7 @@ footer a:hover{text-decoration:underline}
     开源《汉字字典》繁简异体字段 · CC-CEDICT 繁简词典<br>
     字体：霞鹜文楷 (SIL OFL 1.1) · 思源宋体 (SIL OFL 1.1) · 马善政楷书 / 钟齐志莽行书 / 柳建毛草 (Google Fonts, OFL) · 峄山碑篆体 (字传, 免费商用)<br>
     隶书：<a href="https://language.moe.gov.tw/material/info?m=9fe3fb11-c3d5-41f2-b029-6d18a2c2fd0d" target="_blank" rel="noopener noreferrer">教育部隶书 3.00</a>（中華民國教育部，<a href="https://creativecommons.org/licenses/by-nd/3.0/tw/" target="_blank" rel="noopener noreferrer">CC BY-ND 3.0 TW</a>，完整原字库）<br>
-    古文字：甲骨文字形「鏡原甲骨文 Oracular」(Peichao Qin, SIL OFL 1.1) · 说文小篆「开元小篆 + 全字库说文解字」(OFL-1.1 / OGDL-Taiwan-1.0) · 笔顺数据 hanzi-writer-data (Make Me a Hanzi, LGPL)<br>
+    古文字：甲骨文字形「鏡原甲骨文 Oracular」(Peichao Qin, SIL OFL 1.1) · 说文小篆「开元小篆 + 全字库说文解字」(OFL-1.1 / OGDL-Taiwan-1.0) · 笔顺组件 Hanzi Writer (MIT) · 笔顺数据 Make Me a Hanzi / Arphic (Arphic Public License)<br>
     词语：CC-CEDICT (CC BY-SA 3.0) · 篆书优先使用峄山碑字体，缺字时用说文小篆补充，实际字体来源见字形卡片；<br>
     扩展 B–I 区生僻字需系统安装覆盖字体方可显示字形，缺字形时页面会明确标注
   </footer>
@@ -1198,9 +1198,9 @@ function fillShuowen(zi, e){
     `涉及形义争议处请以《说文解字注》等纸本复核</div>`;
 }
 
-/* ============ 笔顺动画（hanzi-writer + hanzi-writer-data，按需从 CDN 取） ============ */
-const HW_DATA = 'https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0.1/';
-const HW_LIB = 'https://cdn.jsdelivr.net/npm/hanzi-writer@3.7.0/dist/hanzi-writer.min.js';
+/* ============ 笔顺动画（组件及数据均从本地按需读取） ============ */
+const HW_DATA = 'assets/hanzi-writer-data/';
+const HW_LIB = 'assets/hanzi-writer/hanzi-writer.min.js';
 let hwLib = null;
 function loadHwLib(){
   if (hwLib) return hwLib;
@@ -1320,7 +1320,7 @@ function showMini(ch, body){
     `<div class="m-head"><div class="m-zi" style="font-family:'Songti SC','Source Han Serif SC VF',serif">${ch}</div>` +
     `<div class="m-info"><span class="lv">表外字</span><div>不在《通用规范汉字表》8105 字内</div></div>` +
     `<button class="m-close" id="close">✕</button></div>${body}` +
-    `<div class="m-foot">异体字以系统宋体呈现（CDN 书法字库多未收录生僻字形）</div>`;
+    `<div class="m-foot">异体字以系统宋体呈现（书法字库多未收录生僻字形）</div>`;
   $('overlay').classList.add('show');
   $('close').onclick = closeDetail;
   document.querySelectorAll('#modal .var-item[data-i]').forEach(el =>
@@ -1351,7 +1351,12 @@ function checkFonts(){
       else if (state === 'miss') { badge.className = 'fbadge miss'; badge.textContent = '未收录此字形'; }
       else if (state === 'fail') { badge.className = 'fbadge fail'; badge.innerHTML = '字体加载失败 · 重试'; }
       else { badge.className = 'fbadge fail'; badge.innerHTML = '网络较慢 · 重试'; }
-      badge.onclick = () => { badge.className = 'fbadge loading'; badge.innerHTML = '<i class="spin"></i>加载中'; retryFont(card); checkSingle(card, badge, fam, ch, spec); };
+      badge.onclick = async () => {
+        badge.className = 'fbadge loading'; badge.innerHTML = '<i class="spin"></i>加载中';
+        const ok = await retryFont(card);
+        if (!ok) { badge.className = 'fbadge fail'; badge.textContent = '字体资源加载失败 · 重试'; return; }
+        checkSingle(card, badge, fam, ch, spec);
+      };
     });
   });
 }
@@ -1359,14 +1364,13 @@ function checkSingle(card, badge, fam, ch, spec){
   document.fonts.load(spec, ch).then(f => {
     if (f.length && document.fonts.check(spec, ch)) { badge.className = 'fbadge ok'; setTimeout(() => badge.style.display = 'none', 400); }
     else { badge.className = 'fbadge miss'; badge.textContent = '该字体未收录此字形'; }
-  });
+  }).catch(() => { badge.className = 'fbadge fail'; badge.textContent = '字体加载失败 · 重试'; });
 }
-/* 重新加载该字体 CSS：主源失败过则换备源 */
+/* 重新读取本地字体样式后再检测，避免 CSS 尚未注册就误报缺字。 */
 function retryFont(card){
   const key = card.dataset.cls.slice(2);
-  if (key === 'zhuan' || key === 'seal' || key === 'orac' || key === 'li') return;   // 本地字体无需切换源
   const link = document.querySelector(`link[data-f="${key}"]`);
-  if (link) link.href = swapCdn(link.href);
+  return link ? reloadFontCss(link) : Promise.resolve(true);
 }
 function navDetail(i, dir){
   const list = (curList && curList.length) ? curList : null;
@@ -1439,30 +1443,28 @@ $('q').addEventListener('input', () => { if (mode === 'radical') buildRadbar($('
 $('geneGo').onclick = () => renderGene($('geneText').value);
 
 /* ============ 字体资源状态 ============ */
-/* 动态注入 CDN 字体 CSS：不阻塞首屏；主源失败自动切备源 */
-const FONT_PKGS = [
-  ['kai',  'cn-fontsource-lxgw-wen-kai-screen/font.css'],
-  ['song', 'cn-fontsource-source-han-serif-sc-vf-regular/font.css'],
-  ['mao',  '@fontsource/ma-shan-zheng/index.css'],
-  ['xing', '@fontsource/zhi-mang-xing/index.css'],
-  ['cao',  '@fontsource/liu-jian-mao-cao/index.css'],
+const FONT_STYLESHEETS = [
+  ['kai',  'fonts/web/kai/font.css'],
+  ['song', 'fonts/web/song/font.css'],
+  ['mao',  'fonts/web/mao/font.css'],
+  ['xing', 'fonts/web/xing/font.css'],
+  ['cao',  'fonts/web/cao/font.css'],
 ];
-/* 主源 unpkg：实测其对全部 woff2 分片返回 200 + CORS 头；
-   jsDelivr 对部分分片(L3、L2 系列)返回 503，故降级为备源 */
-const CDN_MAIN = 'https://unpkg.com/', CDN_ALT = 'https://cdn.jsdelivr.net/npm/';
 function loadFontCss(){
-  FONT_PKGS.forEach(([k, path]) => {
+  FONT_STYLESHEETS.forEach(([k, path]) => {
     const l = document.createElement('link');
-    l.rel = 'stylesheet'; l.dataset.f = k;
-    l.href = CDN_MAIN + path;
-    l.onerror = () => { l.onerror = null; l.href = CDN_ALT + path; };   // 主源失败切备源，仅重试一次
+    l.rel = 'stylesheet'; l.dataset.f = k; l.dataset.src = path;
+    l.href = path;
     document.head.appendChild(l);
   });
 }
 document.querySelectorAll('link[data-f]').forEach(l => l.remove());  // 清理静态 link(若有)
-function swapCdn(url){   // jsDelivr <-> unpkg 互切
-  return url.startsWith(CDN_MAIN) ? CDN_ALT + url.slice(CDN_MAIN.length)
-       : url.startsWith(CDN_ALT)  ? CDN_MAIN + url.slice(CDN_ALT.length) : url;
+function reloadFontCss(link){
+  return new Promise(resolve => {
+    link.onload = () => resolve(true);
+    link.onerror = () => resolve(false);
+    link.href = link.dataset.src + '?retry=' + Date.now();
+  });
 }
 function fontsRegistered(){   // STYLES: [cls, name, src, hot, fam, bit]
   return STYLES.filter(s => [...document.fonts].some(f => f.family.replace(/['"]/g,'') === s[4])).length;
@@ -1477,11 +1479,11 @@ function fontStatCheck(tries){
   }
   el.className = 'font-stat err';
   el.innerHTML = `<span class="dot"></span>字体资源装入 <b>${ok}/${total}</b>` +
-    ` <button id="fontRetry">重试</button> <span>加载中的书体会先显示系统字体，稍后自动替换；若持续失败说明当前网络无法访问字体 CDN</span>`;
-  $('fontRetry').onclick = () => {
-    el.innerHTML = '<span class="dot"></span>正在切换备源并重新装入…';
-    document.querySelectorAll('link[data-f]').forEach(l => { l.href = swapCdn(l.href); });
-    setTimeout(() => fontStatCheck(0), 6000);
+    ` <button id="fontRetry">重试</button> <span>加载中的书体会先显示系统字体；若持续失败，请确认本地资源完整并刷新页面</span>`;
+  $('fontRetry').onclick = async () => {
+    el.innerHTML = '<span class="dot"></span>正在重新装入本地字体…';
+    await Promise.all([...document.querySelectorAll('link[data-f]')].map(reloadFontCss));
+    fontStatCheck(0);
   };
   if (tries > 0) setTimeout(() => fontStatCheck(tries - 1), 9000);   // 慢网继续等待
 }
