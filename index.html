@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>汉字书体 · 中国古文字研究</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23b5493a'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23fffdf8' font-family='Kaiti SC,serif'%3E书%3C/text%3E%3C/svg%3E">
+<meta name="description" content="汉字书体查询：楷体、繁体、隶书、行书、草书、篆书多书体对照，支持拼音查询与部首检索，收录通用规范汉字表 8105 字">
+<!-- CDN 字体改为 JS 动态注入(见文末 loadFontCss)：不阻塞首屏渲染，主源 jsDelivr 失败自动切备源 unpkg -->
+<style>
+:root{
+  --paper:#f6f2e9; --card:#fffdf8; --line:#e5ddcc; --ink:#2d2a24; --ink2:#6f6858;
+  --faint:#a29a86; --cinnabar:#b5493a; --ochre:#9c6b3f; --gold:#c9a35c;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  min-height:100vh;font-size:14px;line-height:1.6}
+body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;z-index:0;
+  background:radial-gradient(ellipse at 20% 0%,rgba(201,163,92,.08),transparent 55%),
+             radial-gradient(ellipse at 85% 15%,rgba(181,73,58,.05),transparent 50%)}
+.wrap{max-width:1060px;margin:0 auto;padding:0 20px;position:relative;z-index:1}
+
+/* ---------- 顶部 ---------- */
+header{text-align:center;padding:44px 0 10px}
+header h1{font-family:'LXGW WenKai Screen','Kaiti SC','STKaiti',serif;font-size:44px;
+  letter-spacing:.18em;font-weight:400;color:var(--ink)}
+header h1 .seal{display:inline-block;color:#fff;background:var(--cinnabar);border-radius:8px;
+  padding:0 10px;margin-right:14px;font-size:38px;line-height:1.35;transform:translateY(-4px)}
+header p{color:var(--ink2);margin-top:10px;font-size:13px;letter-spacing:.08em}
+.stat{display:flex;justify-content:center;gap:26px;margin-top:18px;color:var(--faint);font-size:12px}
+.stat b{color:var(--ochre);font-weight:600;font-size:14px}
+
+/* ---------- 搜索区 ---------- */
+.search-card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:18px 20px 16px;margin-top:22px;box-shadow:0 2px 10px rgba(80,70,40,.05)}
+.tabs{display:flex;gap:6px;margin-bottom:14px}
+.tab{border:1px solid var(--line);background:transparent;color:var(--ink2);border-radius:20px;
+  padding:5px 16px;font-size:13px;cursor:pointer;transition:all .15s}
+.tab:hover{border-color:var(--gold);color:var(--ink)}
+.tab.on{background:var(--ink);color:#f6f2e9;border-color:var(--ink)}
+.search-row{display:flex;gap:10px}
+#q{flex:1;border:1px solid var(--line);border-radius:10px;background:#fffefb;padding:11px 14px;
+  font-size:15px;outline:none;color:var(--ink);transition:border .15s}
+#q:focus{border-color:var(--gold)}
+#q::placeholder{color:var(--faint)}
+.btn{border:none;background:var(--cinnabar);color:#fff;border-radius:10px;padding:0 26px;
+  font-size:14px;cursor:pointer;letter-spacing:.1em;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.hint{color:var(--faint);font-size:12px;margin-top:10px}
+.hint code{background:rgba(156,107,63,.1);border-radius:4px;padding:1px 6px;color:var(--ochre)}
+
+/* ---------- 部首区 ---------- */
+.rad-tabs{display:none;gap:8px;align-items:center;margin:12px 0 2px}
+.rad-tabs.show{display:flex}
+.rad-tab{border:1px solid var(--line);background:#fffefb;border-radius:6px;padding:4px 12px;
+  font-size:12px;color:var(--faint);cursor:pointer;letter-spacing:.04em;font-family:inherit}
+.rad-tab:hover{border-color:var(--gold);color:var(--ochre)}
+.rad-tab.on{background:var(--cinnabar);border-color:var(--cinnabar);color:#fff}
+.rad-tabs small{font-size:11px;color:var(--faint)}
+.rad-none{font-size:12px;color:var(--faint);padding:6px 2px}
+.radical-bar{display:none;flex-wrap:wrap;gap:6px;max-height:168px;overflow-y:auto;padding:2px 2px 6px}
+.radical-bar.show{display:flex}
+.rgroup{flex:0 0 100%;font-size:11px;color:var(--ochre);letter-spacing:.14em;
+  margin:7px 0 0;padding-top:5px;border-top:1px dashed var(--line)}
+.rgroup:first-child{margin-top:0;padding-top:0;border-top:0}
+.rchip{border:1px solid var(--line);background:#fffefb;border-radius:7px;min-width:34px;height:32px;
+  display:flex;align-items:center;justify-content:center;gap:2px;cursor:pointer;
+  font-size:16px;color:var(--ink);font-family:'LXGW WenKai Screen','Kaiti SC',serif;
+  transition:all .12s;padding:0 6px}
+.rchip small{font-size:10px;color:var(--faint);font-family:inherit}
+.rchip:hover{border-color:var(--gold);background:rgba(201,163,92,.08)}
+.rchip.on{background:var(--cinnabar);border-color:var(--cinnabar);color:#fff}
+.rchip.on small{color:rgba(255,255,255,.75)}
+
+/* ---------- 结果 ---------- */
+.result-head{display:flex;align-items:baseline;gap:12px;margin:26px 4px 14px}
+.result-head h2{font-size:16px;font-weight:600;letter-spacing:.05em}
+.result-head h2 .zi{font-family:'LXGW WenKai Screen','Kaiti SC',serif;font-size:22px;color:var(--cinnabar)}
+.result-head span{color:var(--faint);font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:10px}
+.cell{background:var(--card);border:1px solid var(--line);border-radius:12px;text-align:center;
+  padding:14px 6px 10px;cursor:pointer;transition:all .15s;position:relative}
+.cell:hover{transform:translateY(-2px);box-shadow:0 6px 16px rgba(80,70,40,.1);border-color:var(--gold)}
+.cell .big{font-family:'LXGW WenKai Screen','Kaiti SC','STKaiti',serif;font-size:42px;line-height:1.15;color:var(--ink)}
+.cell .py{font-size:11px;color:var(--ochre);margin-top:5px}
+.cell .rd{font-size:10px;color:var(--faint)}
+.cell .mark{position:absolute;top:5px;right:6px;font-size:9px;color:var(--gold);letter-spacing:0}
+.cell .mark.gray{color:var(--faint)}
+
+/* ---------- 字体资源状态条 ---------- */
+.font-stat{display:flex;align-items:center;gap:8px;margin:14px 4px -6px;font-size:12px;color:var(--faint)}
+.font-stat b{font-weight:600;color:var(--ochre)}
+.font-stat .dot{width:7px;height:7px;border-radius:50%;background:var(--gold)}
+.font-stat.err .dot{background:var(--cinnabar)}
+.font-stat button{border:1px solid var(--line);background:var(--card);color:var(--ochre);
+  border-radius:8px;padding:1px 10px;font-size:12px;cursor:pointer}
+.font-stat button:hover{border-color:var(--gold)}
+.empty{padding:60px 0;text-align:center;color:var(--faint)}
+.empty .z{font-size:56px;font-family:'LXGW WenKai Screen',serif;color:var(--line)}
+
+/* ---------- 详情弹层 ---------- */
+.overlay{display:none;position:fixed;inset:0;background:rgba(45,42,36,.45);z-index:50;
+  align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px;backdrop-filter:blur(2px)}
+.overlay.show{display:flex}
+.modal{background:var(--paper);border-radius:18px;max-width:860px;width:100%;
+  border:1px solid var(--line);box-shadow:0 20px 60px rgba(40,35,20,.3);overflow:hidden;
+  margin:auto 0;animation:pop .18s ease}
+@keyframes pop{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}
+.m-head{display:flex;align-items:center;gap:16px;padding:20px 24px 6px;flex-wrap:wrap}
+.m-zi{font-family:'LXGW WenKai Screen','Kaiti SC',serif;font-size:64px;line-height:1.1;color:var(--ink)}
+.m-info{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--ink2)}
+.m-info b{color:var(--ochre);font-weight:600}
+.m-info .lv{border:1px solid var(--line);border-radius:12px;padding:0 10px;font-size:12px;color:var(--ink2)}
+.m-close{margin-left:auto;align-self:flex-start;border:none;background:none;font-size:22px;
+  color:var(--faint);cursor:pointer;padding:4px 8px;border-radius:8px}
+.m-close:hover{background:rgba(0,0,0,.06);color:var(--ink)}
+.m-nav{display:flex;gap:8px;align-self:flex-start}
+.m-nav button{border:1px solid var(--line);background:var(--card);border-radius:8px;width:34px;height:30px;
+  cursor:pointer;color:var(--ink2);font-size:13px}
+.m-nav button:hover{border-color:var(--gold);color:var(--ink)}
+.styles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;padding:16px 24px 8px}
+.sty{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 12px 12px;
+  text-align:center;position:relative;container-type:inline-size}
+.sty .glyph{--gn:1;line-height:1.25;height:140px;display:flex;align-items:center;justify-content:center;color:var(--ink);
+  font-size:min(110px, calc(80cqw / var(--gn)));word-break:keep-all}
+.sty.g-kai .glyph{font-family:'LXGW WenKai Screen','Kaiti SC','STKaiti',serif}
+.sty.g-song .glyph{font-family:'Source Han Serif SC VF','Songti SC','SimSun',serif}
+.sty.g-mao .glyph{font-family:'Ma Shan Zheng',cursive}
+.sty.g-li .glyph{font-family:'MoeLi',serif}
+.sty.g-xing .glyph{font-family:'Zhi Mang Xing',cursive}
+.sty.g-cao .glyph{font-family:'Liu Jian Mao Cao',cursive}
+.sty.g-zhuan .glyph{font-family:'YiShanBeiZhuan',serif}
+.sty.g-seal .glyph{font-family:'ShuoWenZhuan',serif}
+.sty.g-orac .glyph{font-family:'JiaGuWen',serif}
+.sty .tag{display:inline-block;font-size:12px;color:#fff;background:var(--ochre);
+  border-radius:12px;padding:2px 13px;letter-spacing:.15em}
+.sty .src{font-size:11px;color:var(--faint);margin-top:4px}
+.sty .missing{color:var(--faint);font-size:14px;flex-direction:column;gap:10px}
+.sty .missing .q{font-size:64px;color:var(--line);font-family:'LXGW WenKai Screen',serif}
+.sty.hot .tag{background:var(--cinnabar)}
+.fbadge{position:absolute;top:10px;right:10px;font-size:10px;border-radius:10px;padding:2px 8px;
+  color:#fff;letter-spacing:.05em;cursor:default}
+.fbadge.loading{background:var(--faint);opacity:.85}
+.fbadge.miss{background:var(--ochre)}
+.fbadge.fail{background:var(--cinnabar);cursor:pointer}
+.fbadge.ok{background:#6b8f6b;opacity:.0;transition:opacity .4s}
+/* 未收录字形：展示现代字形作灰底参照 */
+.sty.nostroke{background:repeating-linear-gradient(45deg,#fffdf8,#fffdf8 8px,#faf6ec 8px,#faf6ec 16px)}
+.sty.nostroke .glyph.muted{color:#c8c0ad;font-family:'Songti SC',serif}
+.sty.nostroke .tag{background:var(--faint)}
+.m-info .lv.warn{color:var(--ochre);border-color:var(--gold)}
+.spin{display:inline-block;width:8px;height:8px;margin-right:4px;border:1.5px solid #fff;
+  border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-1px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.m-foot{padding:12px 24px 20px;color:var(--faint);font-size:11px;text-align:center;letter-spacing:.03em}
+
+/* ---------- 详情：繁体/异体写法区块 ---------- */
+.var-block{padding:2px 24px 14px}
+.var-block h3{font-size:12.5px;color:var(--ink2);font-weight:600;margin:10px 0 9px;letter-spacing:.05em}
+.var-block h3 span{color:var(--faint);font-weight:400;margin-left:6px}
+.var-list{display:flex;flex-wrap:wrap;gap:8px}
+.var-item{border:1px solid var(--line);background:var(--card);border-radius:10px;padding:7px 11px;
+  display:flex;align-items:center;gap:9px;cursor:pointer;transition:all .15s}
+.var-item:hover{border-color:var(--gold);background:rgba(201,163,92,.08);transform:translateY(-1px)}
+.var-item .g{font-size:27px;line-height:1.1;color:var(--ink);
+  font-family:'Songti SC','Source Han Serif SC VF','LXGW WenKai Screen',serif}
+.var-item .m{display:flex;flex-direction:column;gap:1px}
+.var-item .t{font-size:10.5px;color:var(--faint);letter-spacing:.05em}
+.var-item .r{font-size:10px;color:var(--ochre)}
+.var-empty{font-size:12px;color:var(--faint);padding:6px 0}
+.hit-note{background:rgba(181,73,58,.07);border:1px solid rgba(181,73,58,.2);border-radius:10px;
+  padding:10px 14px;font-size:12.5px;color:var(--ink2);margin:0 24px 6px}
+.hit-note b{color:var(--cinnabar);font-size:17px;font-family:'Songti SC',serif}
+
+/* ---------- 详情：字义区块 ---------- */
+.def-block{padding:2px 24px 16px}
+.def-block h3{font-size:12.5px;color:var(--ink2);font-weight:600;margin:10px 0 9px;letter-spacing:.05em;
+  display:flex;align-items:baseline;gap:8px}
+.def-block h3 span{color:var(--faint);font-weight:400;font-size:11px}
+.def-loading{font-size:12px;color:var(--faint);padding:10px 0}
+.def-pron{border-left:2px solid rgba(201,163,92,.5);padding:1px 0 1px 11px;margin-bottom:12px}
+.def-pron:last-child{margin-bottom:2px}
+.def-pron .py{font-size:12px;color:var(--ochre);letter-spacing:.04em;margin-bottom:5px;
+  font-family:'LXGW WenKai Screen','Kaiti SC',serif}
+.def-pron .py i{font-style:normal;color:var(--faint);font-size:11px;margin-left:6px}
+.def-pron p{font-size:13px;line-height:1.72;color:var(--ink2);margin:0 0 3px}
+.def-pron p.quote{color:var(--faint);font-size:12px;padding-left:10px;position:relative}
+.def-pron p.quote:before{content:'❝';position:absolute;left:-1px;opacity:.45}
+.def-empty{font-size:12px;color:var(--faint);padding:6px 0}
+.def-src{font-size:10.5px;color:var(--faint);margin-top:9px;padding-top:8px;border-top:1px dashed var(--line)}
+.sw-item{border-left:2px solid rgba(181,73,58,.45);padding:1px 0 1px 11px;margin-bottom:9px;
+  font-size:13px;line-height:1.85;color:var(--ink);font-family:'Songti SC','Source Han Serif SC VF',serif}
+.sw-item:last-of-type{margin-bottom:2px}
+.sw-bk{color:var(--cinnabar);font-size:11.5px;margin-right:7px;letter-spacing:.02em}
+.hw-row{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.hw-target{width:172px;height:172px;flex:0 0 172px;border:1px solid var(--line);border-radius:10px;
+  background:#fffefb;cursor:pointer}
+.hw-side{flex:1;min-width:180px;font-size:12px;color:var(--ink2);line-height:1.9}
+.hw-side b{color:var(--cinnabar);font-weight:500}
+.hw-btn{border:1px solid var(--line);background:#fffefb;border-radius:7px;padding:3px 12px;
+  font-size:12px;color:var(--ochre);cursor:pointer;font-family:inherit;margin-right:8px}
+.hw-btn:hover{border-color:var(--gold);background:rgba(201,163,92,.08)}
+.wlist{display:flex;flex-direction:column;gap:7px}
+.witem{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 14px;
+  display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+.witem .w{font-family:'LXGW WenKai Screen','Kaiti SC',serif;font-size:19px;color:var(--ink);letter-spacing:.08em}
+.witem .w .z{cursor:pointer;transition:color .12s}
+.witem .w .z:hover{color:var(--cinnabar)}
+.witem .py{font-size:12.5px;color:var(--ochre);letter-spacing:.02em}
+.witem .trad{font-size:12px;color:var(--faint);margin-left:auto}
+.glyph-warn{background:rgba(186,117,23,.1);border:1px solid rgba(186,117,23,.28);color:#8a5a12;
+  border-radius:8px;padding:7px 10px;font-size:11.5px;margin:0 24px 14px;line-height:1.6;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.glyph-warn button{border:1px solid rgba(186,117,23,.4);background:#fffefb;color:#8a5a12;
+  border-radius:6px;padding:2px 9px;font-size:11px;cursor:pointer;font-family:inherit}
+.glyph-warn button:hover{background:rgba(186,117,23,.12)}
+
+/* ---------- 家谱识别 ---------- */
+.stroke-panel{display:none;margin-top:12px}
+.stroke-panel.show{display:block}
+.stroke-row{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+.stroke-row input{flex:0 0 240px;border:1px solid var(--line);border-radius:10px;background:#fffefb;
+  padding:8px 13px;font-size:14px;outline:none;color:var(--ink);font-family:inherit}
+.stroke-row input:focus{border-color:var(--gold)}
+.stroke-row input::placeholder{color:var(--faint)}
+.stroke-row small{color:var(--faint);font-size:11.5px}
+.stroke-bar{display:flex;flex-wrap:wrap;gap:5px;max-height:132px;overflow-y:auto;padding:2px 2px 4px}
+.schip{border:1px solid var(--line);background:#fffefb;border-radius:6px;padding:3px 9px;
+  font-size:12.5px;color:var(--ink2);cursor:pointer;display:flex;align-items:center;gap:4px;
+  font-family:'LXGW WenKai Screen','Kaiti SC',serif;transition:all .12s}
+.schip small{font-size:10px;color:var(--faint);font-family:-apple-system,sans-serif}
+.schip:hover{border-color:var(--gold);background:rgba(201,163,92,.08)}
+.schip.on{background:var(--cinnabar);border-color:var(--cinnabar);color:#fff}
+.schip.on small{color:rgba(255,255,255,.8)}
+.schip.empty{opacity:.42;cursor:default}
+.schip.empty:hover{border-color:var(--line);background:#fffefb}
+.gene-panel{display:none;margin-top:12px}
+.gene-panel.show{display:block}
+.gene-panel textarea{width:100%;height:112px;border:1px solid var(--line);border-radius:10px;
+  background:#fffefb;padding:11px 13px;font-size:15px;outline:none;resize:vertical;
+  font-family:'Songti SC','LXGW WenKai Screen',serif;color:var(--ink);line-height:1.9;letter-spacing:.05em}
+.gene-panel textarea:focus{border-color:var(--gold)}
+.gene-row{display:flex;gap:10px;margin-top:9px;align-items:center;flex-wrap:wrap}
+.gene-row .btn{height:38px;padding:0 22px;border-radius:9px}
+.gene-row small{color:var(--faint);font-size:11.5px}
+.vtable{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;overflow:hidden;font-size:13px;margin-top:4px}
+.vtable th{background:rgba(156,107,63,.08);color:var(--ochre);font-weight:600;text-align:left;
+  padding:9px 13px;font-size:12px;white-space:nowrap}
+.vtable td{padding:7px 13px;border-top:1px solid var(--line);color:var(--ink2);vertical-align:middle}
+.vtable .z{font-size:23px;color:var(--ink);font-family:'Songti SC','Source Han Serif SC VF',serif;cursor:pointer}
+.vtable .z:hover{color:var(--cinnabar)}
+.vtable .arrow{color:var(--cinnabar);font-size:15px}
+.vtable .tagv{display:inline-block;border:1px solid var(--line);border-radius:10px;padding:0 8px;
+  font-size:11px;color:var(--ochre)}
+.norm-box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+  margin-top:12px;font-family:'Songti SC','LXGW WenKai Screen',serif;font-size:16px;line-height:2;
+  color:var(--ink);letter-spacing:.06em;word-break:break-all}
+.norm-box .changed{color:var(--cinnabar)}
+.copy-btn{border:1px solid var(--line);background:var(--card);color:var(--ochre);border-radius:8px;
+  padding:3px 12px;font-size:12px;cursor:pointer}
+.copy-btn:hover{border-color:var(--gold)}
+
+/* ---------- 部件拆字 ---------- */
+.comp-out{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+  font-size:13px;color:var(--ink2)}
+.comp-out .parts{font-family:'Songti SC','LXGW WenKai Screen',serif;font-size:24px;color:var(--ink);letter-spacing:.1em}
+.comp-out .alt{color:var(--faint);font-size:11.5px;margin-top:4px}
+
+/* ---------- 页脚 ---------- */
+footer{margin-top:56px;padding:26px 0 34px;border-top:1px solid var(--line);
+  color:var(--faint);font-size:11.5px;line-height:2;text-align:center}
+footer a{color:var(--ochre);text-decoration:none}
+footer a:hover{text-decoration:underline}
+
+@media (max-width:600px){
+  header h1{font-size:32px}
+  .styles{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .sty .glyph{font-size:min(76px, calc(80cqw / var(--gn)));height:104px}
+  .m-zi{font-size:48px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="seal">汉字</span>书体溯源</h1>
+    <p>中国古文字研究 · 一字观九体 —— 甲骨 · 篆 · 隶 · 楷 · 繁 · 行 · 草</p>
+    <div class="stat">
+      <span>可查汉字 <b>44354</b></span>
+      <span>规范字 <b>8105</b> / 表外 <b>36249</b></span>
+      <span>字义 <b>20964</b> · 词语 <b>119817</b></span>
+      <span>《说文》字源 <b>3947</b></span>
+      <span>部首 <b id="stRd">260</b> / 康熙 <b id="stRdK">213</b></span>
+    </div>
+  </header>
+
+  <div class="search-card">
+    <div class="tabs">
+      <button class="tab on" data-mode="smart">智能查询</button>
+      <button class="tab" data-mode="radical">部首浏览</button>
+      <button class="tab" data-mode="stroke">笔画检字</button>
+      <button class="tab" data-mode="word">词语</button>
+      <button class="tab" data-mode="comp">部件拆字</button>
+      <button class="tab" data-mode="gene">家谱识别</button>
+    </div>
+    <div class="search-row" id="qrow">
+      <input id="q" type="text" placeholder="输入拼音（yong / hǎo）或汉字（书 / 書 / 喆），回车查询" autocomplete="off">
+      <button class="btn" id="go">查 询</button>
+    </div>
+    <div class="hint" id="hint">拼音支持带调与不带调 · 输入汉字直接查看多种书体 · 繁体/异体字自动反查正字</div>
+    <div class="rad-tabs" id="radTabs">
+      <button class="rad-tab on" data-k="0">现代规范</button>
+      <button class="rad-tab" data-k="1">传统康熙</button>
+      <small id="radTabNote"></small>
+    </div>
+    <div class="radical-bar" id="radbar"></div>
+    <div class="stroke-panel" id="strokePanel">
+      <div class="stroke-row">
+        <input id="stRad" type="text" placeholder="限定部首（可留空）：氵 / 力 / 艹">
+        <small id="stNote"></small>
+      </div>
+      <div class="stroke-bar" id="strokeBar"></div>
+    </div>
+    <div class="gene-panel" id="genePanel">
+      <textarea id="geneText" placeholder="粘贴一段家谱原文，例如：&#10;諱○○字○甫，行三，生於乾隆丙午年，配王氏，子二：長淸源、次淸浩。&#10;&#10;点击「识别」后，会自动列出其中的繁体字、异体字、旧字形及其对应正字。"></textarea>
+      <div class="gene-row">
+        <button class="btn" id="geneGo">识 别</button>
+        <small>逐字比对规范汉字表与异体字库（含官方对照表、OpenCC、Unicode 变体库、开源《汉字字典》与 CC-CEDICT）</small>
+      </div>
+    </div>
+  </div>
+
+  <div id="fontStat" class="font-stat">正在装入字体资源…</div>
+  <div id="result"></div>
+
+  <footer>
+    数据：《通用规范汉字表》(2013) 8105 字 · 拼音/部首/笔画/结构与频率/字义详解 (开源新华字典数据、《汉语拼音辞典》) ·
+    表外生僻字读音与异体关系 (Unicode Unihan 官方库) ·《规范字与繁体字、异体字对照表》· OpenCC ·
+    开源《汉字字典》繁简异体字段 · CC-CEDICT 繁简词典<br>
+    字体：霞鹜文楷 (SIL OFL 1.1) · 思源宋体 (SIL OFL 1.1) · 马善政楷书 / 钟齐志莽行书 / 柳建毛草 (Google Fonts, OFL) · 峄山碑篆体 (字传, 免费商用)<br>
+    隶书：<a href="https://language.moe.gov.tw/material/info?m=9fe3fb11-c3d5-41f2-b029-6d18a2c2fd0d" target="_blank" rel="noopener noreferrer">教育部隶书 3.00</a>（中華民國教育部，<a href="https://creativecommons.org/licenses/by-nd/3.0/tw/" target="_blank" rel="noopener noreferrer">CC BY-ND 3.0 TW</a>，完整原字库）<br>
+    古文字：甲骨文字形「鏡原甲骨文 Oracular」(Peichao Qin, SIL OFL 1.1) · 说文小篆「开元小篆 + 全字库说文解字」(OFL-1.1 / OGDL-Taiwan-1.0) · 笔顺数据 hanzi-writer-data (Make Me a Hanzi, LGPL)<br>
+    词语：CC-CEDICT (CC BY-SA 3.0) · 篆书优先使用峄山碑字体，缺字时用说文小篆补充，实际字体来源见字形卡片；<br>
+    扩展 B–I 区生僻字需系统安装覆盖字体方可显示字形，缺字形时页面会明确标注
+  </footer>
+</div>
+
+<!-- 详情弹层 -->
+<div class="overlay" id="overlay">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script src="data.js"></script>
+<script src="hwset.js"></script>
+<script src="fonts/seal-coverage.js"></script>
+<script src="fonts/lishu-coverage.js"></script>
+<script>
+/* ============ 基础数据 ============ */
+const CH = HANZI.chars, PY = HANZI.pinyinIndex, RD = HANZI.radicalIndex, RDS = HANZI.radicals;
+const RDK = HANZI.radicalIndexK || {}, RDSK = HANZI.radicalsK || [];
+const RDSKS = HANZI.radicalsKS || [];   // 与 RDSK 平行：各部首的康熙笔画数（用于原书序排布）
+/* radKind: 0=现代规范归部(通用规范汉字表)  1=传统归部(康熙字典) */
+let radKind = 0;
+const RD_MAP = () => radKind ? RDK : RD;
+const RDS_MAP = () => radKind ? RDSK : RDS;
+const VI = HANZI.variantIndex || {};    // 表外繁/异体字 -> [[规范字下标, 类型]]
+const CZ = HANZI.chaizi || {};          // 字 -> [[部件...], ...]
+const TONE_MAP = {'\u0101':'a','\u00e1':'a','\u01ce':'a','\u00e0':'a','\u0113':'e','\u00e9':'e','\u011b':'e','\u00e8':'e',
+  '\u012b':'i','\u00ed':'i','\u01d0':'i','\u00ec':'i','\u014d':'o','\u00f3':'o','\u01d2':'o','\u00f2':'o',
+  '\u016b':'u','\u00fa':'u','\u01d4':'u','\u00f9':'u','\u01d6':'v','\u01d8':'v','\u01da':'v','\u01dc':'v','\u00fc':'v',
+  '\u0144':'n','\u0148':'n','\u01f9':'n','\u1e3f':'m'};
+function stripTone(p){
+  let s = '';
+  for (const ch of p.toLowerCase()) s += TONE_MAP[ch] || ch;
+  return s.replace(/[^a-zv]/g,'').replace('v','v');
+}
+/* 汉字判定：含 CJK 扩展 B–I（补充平面，JS 中以代理对表示，须用 u 标志匹配） */
+const HAN_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]|[\u{20000}-\u{323AF}]/u;
+const isHan = s => HAN_RE.test(s);
+const isHanOne = c => HAN_RE.test(c);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const LV_TXT = {1:'一级·常用', 2:'二级·次常用', 3:'三级·专名用'};
+/* 字形结构码（《汉字结构表》）与使用频率分级（《汉语拼音辞典》） */
+const ST_TXT = {D0:'独体', D1:'镶嵌', A0:'品字形', B0:'上下', B1:'上下相等', B2:'上小下大',
+  B3:'上大下小', B4:'田字', E0:'上中下', E1:'上中下相等', E2:'上中下不等',
+  H0:'左右', H1:'左右相等', H2:'左窄右宽', H3:'左宽右窄', M0:'左中右', M1:'左中右相等',
+  M2:'左中右不等', Q0:'全包围', R0:'半包围', R1:'左包右', R2:'左上包右下',
+  R3:'右上包左下', R4:'左下包右上', R5:'上包下', R6:'下包上'};
+const FQ_TXT = {0:'最常用', 1:'较常用', 2:'次常用', 3:'二级字', 4:'三级字', 5:'生僻字'};
+/* Unicode 区：生僻程度的直观来源，由码位实时推算，不占数据体积 */
+function zoneOf(ch){
+  const cp = ch.codePointAt(0);
+  if (cp < 0x3400) return '基本区';
+  if (cp <= 0x4DBF) return '扩展A';
+  if (cp <= 0x9FFF) return '基本区';
+  if (cp <= 0xFAFF) return '兼容区';
+  if (cp <= 0x2A6DF) return '扩展B';
+  if (cp <= 0x2B739) return '扩展C';
+  if (cp <= 0x2B81D) return '扩展D';
+  if (cp <= 0x2CEA1) return '扩展E';
+  if (cp <= 0x2EBE0) return '扩展F';
+  if (cp <= 0x2EE5D) return '扩展I';
+  if (cp <= 0x3134A) return '扩展G';
+  if (cp <= 0x323AF) return '扩展H';
+  return '扩展区';
+}
+const CMAP = {}; CH.forEach((r,i)=>CMAP[r.c]=i);
+
+/* 异体关系类型文案：1/3/6/8/10 繁体，2/5/9 异体，4 俗字，7 通假 */
+const VT_TXT = {1:'繁体', 2:'异体', 3:'繁体', 4:'俗字/旧字形', 5:'异体', 6:'繁体', 7:'通假/异体',
+  8:'繁体', 9:'异体', 10:'繁体'};
+const VT_SRC = {1:'《规范字与繁体字、异体字对照表》', 2:'《规范字与繁体字、异体字对照表》',
+  3:'OpenCC 繁简字典', 4:'汉字繁简索引', 5:'Unicode 异体字库', 6:'Unicode 繁简对应', 7:'Unicode 语义变体',
+  8:'开源《汉字字典》繁体字段', 9:'开源《汉字字典》异体字段', 10:'CC-CEDICT 繁简词典'};
+const vtTxt = t => VT_TXT[t] || '异体';
+const vtSrc = t => VT_SRC[t] || '异体字库';
+/* 简写来源名：详情页「繁体/异体写法」区块空间有限，用短名标注每一条的出处 */
+const VT_SRC_S = {1:'官方对照表', 2:'官方对照表', 3:'OpenCC', 4:'繁简索引',
+  5:'Unihan', 6:'Unihan', 7:'Unihan', 8:'汉字字典', 9:'汉字字典', 10:'CC-CEDICT'};
+/* 反查索引的反向映射：规范字下标 -> 指向它的表外异体/俗字，供详情页列出全部写法 */
+const REV_VAR = (function(){
+  const m = {};
+  for (const v in VI) for (const [i] of VI[v]) (m[i] = m[i] || []).push(v);
+  return m;
+})();
+
+/* 部件反向索引：部件集(排序后拼接) -> [字]，启动构建一次 */
+const COMP_IDX = (function(){
+  const idx = {};
+  for (const w in CZ) {
+    for (const parts of CZ[w]) {
+      if (!parts.length) continue;
+      const key = parts.slice().sort().join('');
+      (idx[key] = idx[key] || []).push(w);
+    }
+  }
+  return idx;
+})();
+
+/* 书体展示配置：[class, 名称, 出处, 热门, font-family, 缺失位掩码] */
+const STYLES = [
+  ['g-kai',  '楷体',   '霞鹜文楷 · 现代楷书', true,  'LXGW WenKai Screen',      1],
+  ['g-song', '繁体',   '思源宋体 · 传统印刷字形', true,  'Source Han Serif SC VF', 2],
+  ['g-mao',  '毛笔楷', '马善政楷书 · 毛笔小楷', false, 'Ma Shan Zheng',          4],
+  ['g-li',   '隶书',   '教育部隶书 3.00 · 中華民國教育部', true, 'MoeLi',       256],
+  ['g-xing', '行书',   '钟齐志莽行书 · 行楷笔意', true,  'Zhi Mang Xing',          8],
+  ['g-cao',  '草书',   '柳建毛草 · 今草连绵', true,  'Liu Jian Mao Cao',       16],
+  ['g-zhuan','篆书',   '峄山碑 · 秦篆(传李斯书)', true,  'YiShanBeiZhuan',        32],
+  ['g-seal', '说文小篆','开元小篆 ·《说文解字》字形', true, 'ShuoWenZhuan',        128],
+  ['g-orac', '甲骨文', '鏡原甲骨文 · 商代已释卜辞', false, 'JiaGuWen',             64],
+];
+const STYLE_BY_BIT = {}; STYLES.forEach(s => STYLE_BY_BIT[s[5]] = s[1]);
+const ZHUAN_SOURCES = [
+  {family: 'YiShanBeiZhuan', src: '峄山碑 · 秦篆(传李斯书)', coverage: new Set(SEAL_COVERAGE.yishan)},
+  {family: 'ShuoWenZhuan', src: '说文小篆补充 ·《说文解字》字形', coverage: new Set(SEAL_COVERAGE.shuowen)},
+];
+function zhuanSource(ch){
+  return ZHUAN_SOURCES.find(s => s.coverage.has(ch));
+}
+const LISHU_CHARS = new Set(LISHU_COVERAGE);
+function lishuGlyph(r){
+  if (LISHU_CHARS.has(r.c)) return r.c;
+  // 只采用现有数据中明确的单字繁体对应，避免从多种写法中擅自选字。
+  if (r.t && [...r.t].length === 1 && LISHU_CHARS.has(r.t)) return r.t;
+  return null;
+}
+function lacksStyle(r, bit){
+  if (bit === 32) return !zhuanSource(r.c);
+  if (bit === 256) return !lishuGlyph(r);
+  return (r.m & bit) !== 0;
+}
+function missingStyles(r){
+  return STYLES.filter(s => lacksStyle(r, s[5])).map(s => s[1]);
+}
+
+/* 本地字体按需下载；教育部隶书保留完整原字库，授权说明见 fonts/moe-lishu-LICENSE.md。 */
+(function(){
+  const ff = document.createElement('style');
+  ff.textContent =
+    "@font-face{font-family:'YiShanBeiZhuan';src:url('fonts/ysbzt.woff2') format('woff2');font-display:swap}" +
+    "@font-face{font-family:'ShuoWenZhuan';src:url('fonts/shuowen.woff2') format('woff2');font-display:swap}" +
+    "@font-face{font-family:'MoeLi';src:url('fonts/moe-lishu.ttf') format('truetype');font-display:swap}" +
+    "@font-face{font-family:'JiaGuWen';src:url('fonts/jiaguwen.woff2') format('woff2');font-display:swap}";
+  document.head.appendChild(ff);
+})();
+
+/* ============ 字义数据（按码位分 32 片，点字时才加载对应片） ============ */
+const DEF_SHARDS = 32;
+const defLoaded = {};
+function defShardOf(ch){ return ch.codePointAt(0) % DEF_SHARDS; }
+function loadDefShard(n){
+  if (defLoaded[n]) return defLoaded[n];
+  return defLoaded[n] = new Promise(res => {
+    const s = document.createElement('script');
+    s.src = 'defs/d' + String(n).padStart(2, '0') + '.js';
+    s.onload = () => res(1);
+    s.onerror = () => { delete defLoaded[n]; res(-1); };   // 不缓存失败，便于重试
+    document.head.appendChild(s);
+  });
+}
+function defOf(ch){
+  const n = defShardOf(ch);
+  const shard = window['DEF_' + n];
+  return shard ? shard[ch] : null;
+}
+
+/* ============ 词语库（CC-CEDICT 12 万词条，按首字码位分 64 片） ============ */
+const WORD_SHARDS = 64;
+const wordLoaded = {};
+function loadWordShard(k){
+  if (wordLoaded[k]) return wordLoaded[k];
+  return wordLoaded[k] = new Promise(res => {
+    const s = document.createElement('script');
+    s.src = 'words/w' + String(k).padStart(2, '0') + '.js';
+    s.onload = () => res(true);
+    s.onerror = () => { delete wordLoaded[k]; res(false); };   // 不缓存失败，便于重试
+    document.head.appendChild(s);
+  });
+}
+async function searchWord(raw){
+  const version = ++queryVersion;
+  const q = raw.trim();
+  if (!q) return renderHome();
+  $('result').innerHTML = head(`词语 <span class="zi">${esc(q)}</span>`, '正在载入词库…');
+  // 包含查询可能命中任意首字的分片；限制并发，已加载和加载中的分片共用缓存。
+  let next = 0, ok = true;
+  await Promise.all(Array.from({length: 4}, async () => {
+    while (next < WORD_SHARDS && version === queryVersion) {
+      if (!await loadWordShard(next++)) ok = false;
+    }
+  }));
+  if (version !== queryVersion) return;
+  if (!ok) {
+    $('result').innerHTML = head(`词语 <span class="zi">${esc(q)}</span>`, '') +
+      `<div class="empty"><div class="z">？</div>词库分片载入失败` +
+      `<small>检查网络后重试</small><button id="wordRetry">重试</button></div>`;
+    $('wordRetry').onclick = () => searchWord(q);
+    return;
+  }
+  const dict = Object.assign({}, ...Array.from({length: WORD_SHARDS}, (_, k) => window['WORD_' + k]));
+  const exact = [], prefix = [], within = [];
+  for (const w in dict) {
+    if (w === q) exact.push(w);
+    else if (w.startsWith(q)) prefix.push(w);
+    else if (w.includes(q)) within.push(w);
+  }
+  const order = [...exact, ...prefix, ...within];
+  if (!order.length) {
+    $('result').innerHTML = head(`词语 <span class="zi">${esc(q)}</span>`, '未命中') +
+      `<div class="empty"><div class="z">？</div>词库中未找到含「${esc(q)}」的词语` +
+      `<small>词库取自 CC-CEDICT（12 万条），仅收录 1–6 字的词与短语</small></div>`;
+    return;
+  }
+  const cards = order.slice(0, 120).map(w => {
+    const rec = dict[w], py = rec[0], other = rec[1] || '';
+    const zi = [...w].map(c => `<span class="z" data-hz="${esc(c)}">${esc(c)}</span>`).join('');
+    return `<div class="witem"><span class="w">${zi}</span>` +
+      `<span class="py">${esc(py)}</span>` +
+      (other ? `<span class="trad">简繁对照 ${esc(other)}</span>` : '') + `</div>`;
+  }).join('');
+  curList = null;
+  $('result').innerHTML = head(`词语 <span class="zi">${esc(q)}</span>`,
+    `命中 ${order.length} 条 · 精确 ${exact.length} · 前缀 ${prefix.length} · 含该字 ${within.length}`) +
+    `<div class="wlist">${cards}</div>` +
+    (order.length > 120 ? `<div style="font-size:12px;color:var(--faint);margin:8px 4px">仅列出前 120 条，可输入更完整的词缩小范围</div>` : '') +
+    `<div class="def-src" style="margin:14px 4px 0">词形与拼音取自 CC-CEDICT（CC BY-SA 3.0）；点击词语中的单字可查看其多体字形</div>`;
+  document.querySelectorAll('#result .witem .z').forEach(el => el.onclick = () => {
+    const c = el.dataset.hz;
+    if (CMAP[c] != null) return openDetail(CMAP[c]);
+    if (VI[c]) return openVariantDetail(c);
+    loadExt(ok => { if (ok && version === queryVersion && EXT.idx[c] != null) openExtDetail(c); });
+  });
+}
+
+/* ============ 系统字体字形探测 ============ */
+/* 用私用区码位（必定无字形）渲染做基准，与目标字位图比对，判断本机字体能否显示该字 */
+const glyphCache = {};
+function hasSystemGlyph(ch){
+  if (ch in glyphCache) return glyphCache[ch];
+  let ok = true;
+  try {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 32;
+    const ctx = cv.getContext('2d');
+    ctx.font = '28px serif';
+    ctx.textBaseline = 'top';
+    const shot = s => { ctx.clearRect(0, 0, 32, 32); ctx.fillText(s, 1, 1); return cv.toDataURL(); };
+    const blank = shot('\uE001');                    // 私用区 → 无字形基准
+    ok = shot(ch) !== blank;
+  } catch (e) { ok = true; }
+  glyphCache[ch] = ok;
+  return ok;
+}
+
+/* ============ 搜索逻辑 ============ */
+let curList = null;   // 当前结果集（供详情上一个/下一个使用）
+let mode = 'smart';
+let queryVersion = 0; // 查询或模式变化后，旧异步回调不再更新页面。
+
+/* 扩展字库（表外字 36249 字，含 CJK 扩展 B–I 生僻字）按需加载：主库查不到时才拉取 */
+let EXT = null, extLoading = false, extWait = [];
+function loadExt(cb){
+  if (EXT) return cb(true);
+  extWait.push(cb);
+  if (extLoading) return;
+  extLoading = true;
+  const s = document.createElement('script');
+  s.src = 'data_ext.js';
+  const done = ok => {
+    EXT = ok ? HANZI_EXT : null;
+    extLoading = false;
+    const wait = extWait; extWait = [];
+    if (!ok) s.remove();
+    wait.forEach(f => f(ok));
+  };
+  s.onload = () => done(typeof HANZI_EXT !== 'undefined' && Array.isArray(HANZI_EXT.chars) && !!HANZI_EXT.idx && !!HANZI_EXT.py);
+  s.onerror = () => done(false);
+  document.head.appendChild(s);
+}
+function renderExtError(box, retry){
+  box.innerHTML = `<div class="def-empty">扩展字库载入失败，请检查网络后重试 <button type="button">重试</button></div>`;
+  box.querySelector('button').onclick = retry;
+}
+const EXT_N = 36249;   // 扩展库字数（构建脚本产出，用于文案展示）
+
+function searchSmart(raw){
+  const version = ++queryVersion;
+  const q = raw.trim();
+  if (!q) return renderHome();
+  if (isHan(q)) {
+    const ch = [...q].find(c => isHanOne(c));
+    const i = CMAP[ch];
+    if (i != null) return openDetail(i);
+    // 规范字表外 → 走繁/异体反查
+    const hit = VI[ch];
+    if (hit) { renderVariantHit(ch, hit); return openDetail(hit[0][0], {from: ch, type: hit[0][1]}); }
+    // 仍未命中 → 查扩展字库（表外生僻字 / 日本汉字 / 僻体）
+    $('result').innerHTML = head(`正在查扩展字库 <span class="zi">${esc(ch)}</span>`, '');
+    return loadExt(ok => {
+      if (version !== queryVersion) return;
+      if (!ok) return renderExtError($('result'), () => searchSmart(raw));
+      const e = EXT && EXT.idx && EXT.idx[ch];
+      if (e != null) { renderExtHit(ch, e); return openExtDetail(ch); }
+      renderUnknown(ch);
+    });
+  }
+  const key = stripTone(q);
+  if (!key) return renderEmpty(q);
+  // 精确音节 + 前缀音节联想
+  const exact = PY[key] || [];
+  const prefix = Object.keys(PY).filter(k => k.startsWith(key) && k !== key);
+  if (exact.length || prefix.length) return renderPinyin(key, exact, prefix, q);
+  return renderEmpty(q);
+}
+
+/* ---- 反查命中：结果区说明 + 弹层提示条 ---- */
+function renderVariantHit(ch, hit){
+  const main = hit[0], r = CH[main[0]];
+  const others = hit.slice(1).map(([i, t]) => `${CH[i].c}（${vtTxt(t)}）`).join('、');
+  let html = head(`<span class="zi">${ch}</span> → 正字 <span class="zi">${r.c}</span>`,
+    `${vtTxt(main[1])} · ${vtSrc(main[1])}`);
+  html += `<div class="result-head" style="margin-top:-4px"><span>` +
+    `「<b style="color:var(--cinnabar);font-size:15px">${ch}</b>」是「<b style="color:var(--cinnabar);font-size:15px">${r.c}</b>」` +
+    `的${vtTxt(main[1])}写法${others ? '，亦可对应 ' + others : ''}` +
+    ` · 拼音 ${esc(r.p[0])} · ${esc(r.r)}部 ${r.s}画</span></div>`;
+  html += grid([main[0]]);
+  $('result').innerHTML = html;
+  bindCells();
+}
+
+/* ---- 扩展库命中：表外生僻字 ---- */
+function renderExtHit(ch, e){
+  const rec = EXT.chars[e];
+  const v = ('v' in rec) ? rec.v : null;
+  $('result').innerHTML =
+    head(`<span class="zi">${ch}</span> · 表外字`, rec.p.join(' / ')) +
+    `<div class="result-head" style="margin-top:-4px"><span>` +
+    `读音 <b style="color:var(--cinnabar)">${esc(rec.p.join(' / '))}</b>` +
+    (rec.r ? ` · ${esc(rec.r)}部` : '') +
+    ` · ${zoneOf(ch)}` +
+    (v != null ? ` · 对应规范字 <b style="color:var(--cinnabar)">${CH[v].c}</b>` : ' · 无对应规范字') +
+    ` · 不在《通用规范汉字表》8105 字内</span></div>` +
+    (v != null ? grid([v]) : '');
+  bindCells();
+}
+function extCell(w){
+  const e = EXT.chars[EXT.idx[w]];
+  if (!e) return '';
+  const dst = ('v' in e) ? CH[e.v].c : '';
+  const info = [e.r ? e.r + '部' : zoneOf(w), dst ? '→ ' + dst : ''].filter(Boolean).join(' · ');
+  return `<div class="cell" data-e="${w}" style="background:#faf7ef" title="${zoneOf(w)}">` +
+    `<div class="big" style="font-family:'Songti SC','Source Han Serif SC VF',serif">${w}</div>` +
+    `<div class="py">${esc(e.p[0])}</div><div class="rd">${info}</div></div>`;
+}
+
+/* ---- 表外且无任何对照 ---- */
+function renderUnknown(ch){
+  curList = [];
+  const parts = CZ[ch];
+  $('result').innerHTML = head(`未找到 <span class="zi">${esc(ch)}</span>`, '该字不在规范汉字表内') +
+    `<div class="empty"><div class="z">？</div>字库未收录「${esc(ch)}」` +
+    `<small>${parts ? '部件结构：' + parts.map(p => p.join(' + ')).join(' ／ ') : ''}<br>` +
+    `可尝试「部件拆字」按部件查找，或用「家谱识别」批量处理</small></div>`;
+}
+
+/* ============ 渲染 ============ */
+const $ = id => document.getElementById(id);
+
+function renderHome(){
+  curList = CH.map((_,i)=>i);
+  paintGrid('常用字 · 一级字表', CH.length + ' 字', curList.slice(0, 200), '（默认展示前 200 字，可搜索查看全部）');
+}
+
+function renderPinyin(key, exact, prefix, raw){
+  const version = queryVersion;
+  let idxs = exact.slice();
+  let title = `拼音 <span class="zi">${esc(raw)}</span>`;
+  let sub = exact.length + ' 字';
+  if (!exact.length && prefix.length) {
+    idxs = PY[prefix[0]];
+    title = `拼音 <span class="zi">${esc(raw)}</span> 的近似音节`;
+    sub = `${prefix[0]} · ${idxs.length} 字`;
+  }
+  curList = idxs;
+  let html = head(title, sub);
+  if (prefix.length) {
+    html += `<div style="margin:0 4px 12px;font-size:12px;color:var(--faint)">相关音节：` +
+      prefix.slice(0, 14).map(k => `<a href="#" data-py="${k}" style="color:var(--ochre);margin-right:10px">${k}</a>`).join('') + `</div>`;
+  }
+  const syll = exact.length ? key : (prefix[0] || key);
+  html += grid(idxs);
+  $('result').innerHTML = html;
+  bindCells();
+  $('result').querySelectorAll('[data-py]').forEach(a => a.onclick = e => { e.preventDefault(); $('q').value = a.dataset.py; searchSmart(a.dataset.py); });
+  // 表外同音字（扩展库，异步追加，不阻塞主结果）
+  const ph = document.createElement('div');
+  ph.id = 'extPh';
+  ph.innerHTML = head('表外字 · 同音', '正在载入扩展字库…');
+  $('result').appendChild(ph);
+  loadExt(ok => {
+    if (version !== queryVersion || $('extPh') !== ph) return;
+    if (!ok) return renderExtError(ph, () => searchSmart(raw));
+    const ex = (EXT.py && EXT.py[syll]) || [];
+    if (!ex.length) { ph.remove(); return; }
+    const html = head(`表外字 · 同音 <span class="zi">${esc(syll)}</span>`,
+      `${ex.length} 字${ex.length > 60 ? '（显示前 60）' : ''} · 扩展字库，含生僻字与专名用字`) +
+      `<div class="grid">${ex.slice(0, 60).map(i => extCell(EXT.chars[i].c)).join('')}</div>`;
+    ph.innerHTML = html;
+    bindCells();
+  });
+}
+
+function renderEmpty(q){
+  curList = [];
+  $('result').innerHTML = head(`未找到 <span class="zi">${esc(q)}</span>`, '试试其他拼音或汉字') +
+    `<div class="empty"><div class="z">？</div>没有匹配的字<br><small>提示：输入完整音节（如 cheng）或单个汉字</small></div>`;
+}
+
+function renderRadical(r){
+  const idxs = RD_MAP()[r] || [];
+  curList = idxs;
+  const label = radKind ? '康熙部首' : '部首';
+  paintGrid(`${label} <span class="zi">${esc(r)}</span>`, idxs.length + ' 字', idxs, '');
+}
+
+/* ============ 部件拆字检索 ============ */
+function searchComp(raw){
+  const chars = [...raw.replace(/[\s,，、+]+/g, '')].filter(c => c);
+  if (!chars.length) { renderHome(); return; }
+  // 单字：显示它自身的部件结构
+  if (chars.length === 1) {
+    const w = chars[0], schemes = CZ[w];
+    const inStd = CMAP[w] != null;
+    if (!schemes) {
+      $('result').innerHTML = head(`部件 <span class="zi">${esc(w)}</span>`, '无拆字数据') +
+        `<div class="empty"><div class="z">？</div>拆字库没有「${esc(w)}」的结构数据</div>`;
+      return;
+    }
+    let html = head(`<span class="zi">${esc(w)}</span> 的部件结构`, schemes.length > 1 ? schemes.length + ' 种拆法' : '');
+    html += `<div class="comp-out">` + schemes.map(p =>
+      `<div><span class="parts">${p.join(' + ')}</span></div>`).join('') + `</div>`;
+    html += head(`由「${esc(w)}」参与构成的字`, '点击查字形');
+    // 含该部件的其它字（限制数量）
+    const rel = [];
+    for (const k in COMP_IDX) {
+      if (!k.includes(w) || k === w) continue;
+      for (const x of COMP_IDX[k]) if (CMAP[x] != null) rel.push(CMAP[x]);
+      if (rel.length > 120) break;
+    }
+    const uniq = [...new Set(rel)].slice(0, 120);
+    html += uniq.length ? grid(uniq) : `<div class="empty" style="padding:30px 0"><small>暂无</small></div>`;
+    $('result').innerHTML = html + (inStd ? '' : '');
+    bindCells();
+    return;
+  }
+  // 多部件：精确匹配优先，再做包含匹配
+  const key = chars.slice().sort().join('');
+  const exact = [...new Set(COMP_IDX[key] || [])];
+  const contain = [];
+  for (const k in COMP_IDX) {
+    if (k === key) continue;
+    const parts = [...k];
+    if (parts.length > chars.length + 1) continue;
+    if ([...key].every(c => k.includes(c))) contain.push(...COMP_IDX[k]);
+  }
+  const rest = [...new Set(contain)].filter(w => !exact.includes(w)).slice(0, 96);
+  let html = head(`部件 <span class="zi">${esc(chars.join(' + '))}</span>`,
+    `精确 ${exact.length} 字 · 含此部件 ${rest.length} 字`);
+  html += `<div class="comp-out">按部件组合查字，顺序无关；结果为规范字与异体字混合</div>`;
+  html += renderMixedGrid(exact.concat(rest));
+  $('result').innerHTML = html;
+  bindCells();
+}
+
+/* 混合网格：规范字走详情，表外字走异体详情 */
+function renderMixedGrid(words){
+  if (!words.length) return `<div class="empty"><div class="z">？</div>没有由这些部件构成的字</div>`;
+  return `<div class="grid">` + words.map(w => {
+    const i = CMAP[w];
+    if (i != null) {
+      const r = CH[i];
+      return `<div class="cell" data-i="${i}"><div class="big">${r.c}</div>` +
+        `<div class="py">${esc(r.p[0])}</div><div class="rd">${esc(r.r)} · ${r.s}画</div></div>`;
+    }
+    const hit = VI[w];
+    const dst = hit ? CH[hit[0][0]].c : '';
+    return `<div class="cell" data-v="${w}" style="background:#faf7ef"><div class="big" ` +
+      `style="font-family:'Songti SC',serif">${w}</div>` +
+      `<div class="py" style="color:var(--cinnabar)">${dst ? '→ ' + dst : '表外字'}</div>` +
+      `<div class="rd">${hit ? vtTxt(hit[0][1]) : '无对照'}</div></div>`;
+  }).join('') + `</div>`;
+}
+
+/* ============ 家谱段落批量识别 ============ */
+function geneScan(text){
+  const rows = [];
+  [...text].forEach((ch, i) => {
+    if (!isHanOne(ch)) return;
+    if (CMAP[ch] != null) return;                 // 规范字，无需提示
+    const hit = VI[ch];
+    const ex = EXT && EXT.idx ? EXT.idx[ch] : undefined;
+    rows.push(hit ? {ch, i, idx: hit[0][0], type: hit[0][1], all: hit}
+                  : {ch, i, idx: null, type: 0, ext: (ex != null ? ex : null)});
+  });
+  return rows;
+}
+function renderGene(text){
+  const version = ++queryVersion;
+  const total = [...text].filter(c => isHanOne(c)).length;
+  if (!total) {
+    $('result').innerHTML = head('家谱识别', '未输入内容') +
+      `<div class="empty"><div class="z">？</div>请先粘贴一段家谱文字</div>`;
+    return;
+  }
+  if (!EXT) {
+    $('result').innerHTML = head('家谱识别', '正在载入字库…');
+    loadExt(ok => {
+      if (version !== queryVersion) return;
+      if (!ok) return renderExtError($('result'), () => renderGene(text));
+      renderGene(text);
+    });
+    return;
+  }
+  const rows = geneScan(text);
+  const mapped = rows.filter(r => r.idx != null);
+  let html = head('家谱识别结果', `共 ${total} 字 · 待核 ${rows.length} 字 · 可映射 ${mapped.length} 字`);
+  if (!rows.length) {
+    html += `<div class="comp-out">这段文字全部为规范汉字，未发现繁体字、异体字或旧字形。</div>`;
+    $('result').innerHTML = html; return;
+  }
+  html += `<table class="vtable"><thead><tr><th>原文</th><th>性质</th><th>对应正字</th><th>依据</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    const dst = r.idx != null ? CH[r.idx] : null;
+    html += `<tr><td><span class="z" ${dst ? `data-i="${r.idx}"` : `data-v="${r.ch}"`}>${r.ch}</span></td>` +
+      `<td><span class="tagv">${r.type ? vtTxt(r.type) : '表外字'}</span></td>` +
+      `<td>${dst ? `<span class="arrow">→</span> <span class="z" data-i="${r.idx}">${dst.c}</span> ` +
+        `<small style="color:var(--faint)">${esc(dst.p[0])}</small>`
+        : (r.ext != null ? `<span style="color:var(--ochre)">生僻 · ${esc(EXT.chars[r.ext].p[0])}</span>`
+                         : '<span style="color:var(--faint)">—</span>')}</td>` +
+      `<td style="font-size:11.5px">${r.type ? vtSrc(r.type)
+        : (r.ext != null ? `Unicode Unihan 读音库 · ${zoneOf(r.ch)}` : '规范字表与异体字库均未收录')}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+  // 规范化文本：异体字替换为正字并高亮
+  const map = geneMap(text);
+  html += `<div style="margin-top:16px" class="result-head"><h2 style="font-size:14px">规范转写</h2>` +
+    `<span>已替换 ${mapped.length} 字，红字为改动处</span>` +
+    `<button class="copy-btn" id="normCopy">复制</button></div>` +
+    `<div class="norm-box">` + [...text].map((c, i) =>
+      map[i] != null ? `<span class="changed">${CH[map[i]].c}</span>` : esc(c)).join('') + `</div>`;
+  $('result').innerHTML = html;
+  bindCells();
+  document.querySelectorAll('#result .z[data-i]').forEach(el =>
+    el.onclick = () => openDetail(+el.dataset.i));
+  document.querySelectorAll('#result .z[data-v]').forEach(el =>
+    el.onclick = () => openVariantDetail(el.dataset.v));
+  const cp = $('normCopy');
+  if (cp) cp.onclick = () => {
+    const plain = [...text].map((c, i) => map[i] != null ? CH[map[i]].c : c).join('');
+    navigator.clipboard.writeText(plain).then(() => { cp.textContent = '已复制'; setTimeout(() => cp.textContent = '复制', 1600); })
+      .catch(() => { cp.textContent = '复制失败'; });
+  };
+}
+/* 位置 -> 规范字下标 的映射，供高亮渲染使用 */
+function geneMap(text){
+  const map = {};
+  geneScan(text).forEach(r => { if (r.idx != null) map[r.i] = r.idx; });
+  return map;
+}
+
+function paintGrid(title, sub, idxs, note){
+  $('result').innerHTML = head(title, sub + (note ? ' ' + note : '')) + grid(idxs);
+  bindCells();
+}
+function head(t, sub){ return `<div class="result-head"><h2>${t}</h2><span>${sub}</span></div>`; }
+function grid(idxs){
+  if (!idxs.length) return `<div class="empty"><div class="z">？</div>该分类下暂无字</div>`;
+  return `<div class="grid">` + idxs.map(i => {
+    const r = CH[i];
+    const lack = missingStyles(r);
+    const mark = lack.length
+      ? `<span class="mark gray" title="该字缺 ${lack.join('、')} 字形">缺${lack.length}体</span>`
+      : `<span class="mark" title="${STYLES.length} 种书体字形齐全">${STYLES.length}体全</span>`;
+    return `<div class="cell" data-i="${i}"><div class="big">${r.c}</div>` +
+      `<div class="py">${esc(r.p[0])}</div><div class="rd">${esc(r.r)} · ${r.s}画</div>${mark}</div>`;
+  }).join('') + `</div>`;
+}
+function bindCells(){
+  document.querySelectorAll('.cell').forEach(c => {
+    if (c.dataset.i != null && c.dataset.i !== '') c.onclick = () => openDetail(+c.dataset.i);
+    else if (c.dataset.v) c.onclick = () => openVariantDetail(c.dataset.v);
+    else if (c.dataset.e) c.onclick = () => openExtDetail(c.dataset.e);
+  });
+}
+
+/* ============ 部首栏 ============ */
+/* 支持输入筛选（如输入「力」直接定位该部）与现代/康熙两套归部；
+   传统模式下按《康熙字典》原书序（部首笔画 → 编号）排布，并以「N 画」分组 */
+let curRad = null;
+const CN_NUM = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
+  '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八'];
+function buildRadbar(filter, autoFirst){
+  const keys = [...(filter || '').trim()].filter(c => /\S/.test(c));
+  const all = RDS_MAP(), cnt = RD_MAP();
+  const sk = radKind ? RDSKS : null;                    // 只有传统康熙模式带笔画数据
+  const pos = {}; all.forEach((r, i) => { if (!(r in pos)) pos[r] = i; });
+  const shown = keys.length ? all.filter(r => keys.includes(r)) : all;
+  let html = '', lastSt = -1;
+  shown.forEach(r => {
+    const n = (cnt[r] || []).length, st = sk ? (sk[pos[r]] || 0) : 0;
+    let group = '';
+    if (sk && !keys.length && st && st !== lastSt) {    // 手动筛选时不插分组，避免干扰
+      group = `<div class="rgroup">${CN_NUM[st] || st} 画</div>`;
+      lastSt = st;
+    }
+    const tip = st ? `${r}部 · ${st}画 · ${n}字` : `${r}部 · ${n}字`;
+    html += group + `<div class="rchip" data-r="${esc(r)}" title="${esc(tip)}">${esc(r)}<small>${n}</small></div>`;
+  });
+  $('radbar').innerHTML = shown.length
+    ? html
+    : `<div class="rad-none">字库中没有部首「${esc((filter||'').trim())}」，可切换到「${radKind ? '现代规范' : '传统康熙'}」再试</div>`;
+  document.querySelectorAll('.rchip').forEach(c => c.onclick = () => {
+    document.querySelectorAll('.rchip').forEach(x => x.classList.remove('on'));
+    c.classList.add('on');
+    curRad = c.dataset.r;
+    renderRadical(c.dataset.r);
+  });
+  const pick = r => {
+    const el = document.querySelector(`.rchip[data-r="${r}"]`);
+    if (!el) return false;
+    document.querySelectorAll('.rchip').forEach(x => x.classList.remove('on'));
+    el.classList.add('on'); curRad = r; renderRadical(r); return true;
+  };
+  if (keys.length && shown.length) pick(shown[0]);                 // 输入了具体部首 → 直接打开
+  else if (!keys.length && curRad && shown.includes(curRad)) pick(curRad);
+  else if (autoFirst && shown.length) pick(shown[0]);
+}
+function setRadKind(k, auto){
+  radKind = k;
+  document.querySelectorAll('.rad-tab').forEach(x => x.classList.toggle('on', +x.dataset.k === k));
+  $('radTabNote').textContent = k
+    ? '《康熙字典》214 部 — 古籍 / 家谱查字常用（如「劝」归力部）'
+    : '《通用规范汉字表》归部（如「劝」归又部）';
+  buildRadbar($('q').value, auto !== false);
+}
+document.querySelectorAll('.rad-tab').forEach(t => t.onclick = () => setRadKind(+t.dataset.k));
+
+/* ============ 笔画检字 ============ */
+/* 按总笔画数检索：不知读音、不明部首时最直接的入口；可再以部首缩小范围。
+   同笔画内沿用字表级别排序（一级常用在前）。仅覆盖规范字表 8105 字。 */
+const ST = HANZI.strokeIndex || {};
+const ST_KEYS = Object.keys(ST).map(Number).sort((a, b) => a - b);
+let curStroke = ST_KEYS.includes(9) ? 9 : (ST_KEYS[0] || 1);
+function strokeFilter(rad){
+  const set = new Set();
+  if (rad) { (RD[rad] || []).forEach(i => set.add(i)); (RDK[rad] || []).forEach(i => set.add(i)); }
+  return set;
+}
+function buildStrokeBar(){
+  const rad = ($('stRad').value || '').trim(), set = strokeFilter(rad);
+  $('strokeBar').innerHTML = ST_KEYS.map(n => {
+    const c = rad ? ST[n].filter(i => set.has(i)).length : ST[n].length;
+    return `<div class="schip ${c ? '' : 'empty'} ${n === curStroke ? 'on' : ''}" data-n="${n}"` +
+      `title="${n} 画 · ${c} 字">${n} 画<small>${c}</small></div>`;
+  }).join('');
+  document.querySelectorAll('.schip').forEach(el => el.onclick = () => {
+    if (el.classList.contains('empty')) return;
+    document.querySelectorAll('.schip').forEach(x => x.classList.remove('on'));
+    el.classList.add('on');
+    curStroke = +el.dataset.n;
+    renderStroke(curStroke);
+  });
+}
+function renderStroke(n){
+  const rad = ($('stRad').value || '').trim(), set = strokeFilter(rad);
+  let idxs = (ST[n] || []).slice();
+  if (rad) idxs = idxs.filter(i => set.has(i));
+  curList = idxs;
+  const total = ST_KEYS.reduce((a, k) => a + ST[k].length, 0);
+  $('stNote').textContent = `共 ${ST_KEYS.length} 个笔画档 · ${total} 字` +
+    (rad ? ` · 已限定 ${rad} 部` : '');
+  paintGrid(`${n} 画${rad ? ' · ' + esc(rad) + ' 部' : ''}`,
+    `${idxs.length} 字 · 常用字在前`,
+    idxs.slice(0, 300),
+    idxs.length > 300 ? `（共 ${idxs.length} 字，先展示前 300）` : '');
+}
+$('stRad').addEventListener('input', () => { buildStrokeBar(); renderStroke(curStroke); });
+
+/* ============ 详情 ============ */
+function openDetail(i, opts){
+  if (i == null || i < 0 || i >= CH.length) return;
+  return renderDetail(CH[i], Object.assign({idx: i}, opts || {}));
+}
+/* 表外字详情：数据来自扩展库（Unihan 读音 + 对应正字） */
+function openExtDetail(w, opts){
+  const e = EXT && EXT.chars[EXT.idx[w]];
+  if (!e) return;
+  return renderDetail({c: w, p: e.p, r: e.r || '', s: 0, t: '', lv: 0, m: 0, f: [], y: [], k: (CZ[w] || [])},
+    Object.assign({ext: true, v: (('v' in e) ? e.v : null)}, opts || {}));
+}
+function renderDetail(r, opts){
+  const zi = r.c, trad = r.t || r.c;
+  const i = opts.idx;
+  const missing = missingStyles(r);
+  const stylesHtml = STYLES.map(([cls, name, src, hot, fam, bit]) => {
+    let ch = (cls === 'g-song') ? trad : zi;
+    if (cls === 'g-li') ch = lishuGlyph(r) || zi;
+    const zhuan = cls === 'g-zhuan' ? zhuanSource(zi) : null;
+    const family = zhuan ? zhuan.family : fam;
+    const source = zhuan ? zhuan.src : src;
+    const lack = lacksStyle(r, bit);
+    if (lack) {
+      // 未收录：显示该字现代字形作参照 + 明确标注，不再等待网络加载
+      const missingSource = cls === 'g-zhuan' ? '峄山碑 / 说文小篆均未收录' : source;
+      return `<div class="sty nostroke ${cls}" data-cls="${cls}"><span class="tag">${name}</span>` +
+        `<div class="glyph muted" style="--gn:${[...ch].length}">${ch}</div><div class="src">${missingSource}</div>` +
+        `<span class="fbadge miss">未收录此字形</span></div>`;
+    }
+    const note = (cls === 'g-song' && !r.t) ? ' · 简繁同形'
+      : (cls === 'g-li' && ch !== zi) ? ` · 繁体「${esc(ch)}」字形` : '';
+    const fontStyle = zhuan ? `;font-family:'${family}',serif` : '';
+    const glyph = `<div class="glyph" style="--gn:${[...ch].length}${fontStyle}">${ch}</div><div class="src">${source}${note}</div>`;
+    return `<div class="sty ${hot?'hot':''} ${cls}" data-cls="${cls}"><span class="tag">${name}</span>` +
+      `${glyph}<span class="fbadge loading" data-fam="${family}" data-ch="${ch}">` +
+      `<i class="spin"></i>加载中</span></div>`;
+  }).join('');
+
+  let note = '';
+  if (opts.from) {
+    note = `<div class="hit-note">以 <b>${opts.from}</b> 查得：它是「${zi}」的${vtTxt(opts.type)}写法` +
+      `<span style="color:var(--faint)"> · 依据 ${vtSrc(opts.type)}</span></div>`;
+  } else if (opts.ext) {
+    note = `<div class="hit-note"><b>${zi}</b> 不在《通用规范汉字表》内，属扩展字库收录的表外字` +
+      `<span style="color:var(--faint)"> · 读音依据 Unicode Unihan 数据库</span></div>`;
+  }
+  if (opts.ext && opts.v != null) {
+    note += `<div class="var-block" style="padding-top:10px"><h3>对应规范字<span>点击查看多体字形</span></h3>` +
+      `<div class="var-list"><div class="var-item" data-i="${opts.v}"><span class="g">${CH[opts.v].c}</span>` +
+      `<span class="m"><span class="t">正字</span><span class="r">${esc(CH[opts.v].p[0])} · ${LV_TXT[CH[opts.v].lv]}</span></span></div></div></div>`;
+  }
+  const extFlag = opts.ext ? `<span class="lv warn">表外字</span>` : `<span class="lv">${LV_TXT[r.lv]}</span>`;
+  // 本机字体若没有该字形，明确说明并提供复制，避免误判为加载失败
+  const noGlyph = !hasSystemGlyph(zi);
+  const glyphWarn = noGlyph
+    ? `<div class="glyph-warn"><span>本机系统字体没有「${esc(zi)}」的字形（${zoneOf(zi)}字），上方若显示为空白属字体覆盖不足，非页面故障。</span>` +
+      `<button id="copyZi">复制该字</button></div>`
+    : '';
+
+  $('modal').innerHTML = note + `
+    <div class="m-head">
+      <div class="m-zi"${opts.ext ? ` style="font-family:'Songti SC','Source Han Serif SC VF',serif"` : ''}>${zi}</div>
+      <div class="m-info">
+        <div>拼音 <b>${r.p.map(esc).join(' / ')}</b></div>
+        ${r.r ? `<div>部首 <b>${esc(r.r)}</b>${r.kr ? `<small style="color:var(--faint);font-size:11px"> · 康熙 ${esc(r.kr)}部</small>` : ''}</div>` : ''}
+        ${r.s ? `<div>笔画 <b>${r.s}</b></div>` : ''}
+        ${r.st ? `<div>结构 <b>${ST_TXT[r.st] || esc(r.st)}</b></div>` : ''}
+        ${r.fq != null ? `<div>频度 <b>${FQ_TXT[r.fq] || '—'}</b></div>` : ''}
+        ${opts.ext ? `<div>区段 <b>${zoneOf(zi)}</b></div>` : ''}
+        ${extFlag}
+        ${r.t ? `<div>繁体 <b style="font-family:'Source Han Serif SC VF',serif">${r.t}</b></div>` : ''}
+      </div>
+      ${i != null ? `<div class="m-nav">
+        <button id="prev" title="上一个">‹</button>
+        <button id="next" title="下一个">›</button>
+      </div>` : ''}
+      <button class="m-close" id="close">✕</button>
+    </div>
+    <div class="styles">${stylesHtml}</div>
+    ${glyphWarn}
+    ${varSection(r)}
+    <div class="def-block" id="defBox"><h3>字义<span>正在载入…</span></h3>
+      <div class="def-loading">释义按需加载中…</div></div>
+    <div class="def-block" id="swBox"><h3>字源 · 说文解字<span>正在载入…</span></h3>
+      <div class="def-loading">字源材料按需加载中…</div></div>
+    <div class="def-block" id="strokeBox"><h3>笔顺<span>正在载入…</span></h3>
+      <div class="def-loading">笔顺按需加载中…</div></div>
+    <div class="m-foot">${i != null ? `点击 ‹ › 浏览${curList ? '当前结果集' : '字库'}中的相邻字` : '表外字 · 拼音取自 Unicode Unihan'}
+      ${missing.length ? ` · 「未收录」表示该书的字库本身没有这个字的字形（${missing.join('、')}），非网络问题` : ''}
+      ${opts.ext ? ' · 生僻字形多未收入书法字库，缺失属正常现象' : ''}</div>`;
+
+  $('overlay').classList.add('show');
+  $('close').onclick = closeDetail;
+  document.querySelectorAll('#modal .var-item[data-i]').forEach(el =>
+    el.onclick = () => openDetail(+el.dataset.i));
+  if (i != null) {
+    $('prev').onclick = () => navDetail(i, -1);
+    $('next').onclick = () => navDetail(i, 1);
+  }
+  const cp = $('copyZi');
+  if (cp) cp.onclick = () => {
+    navigator.clipboard && navigator.clipboard.writeText(zi);
+    cp.textContent = '已复制';
+    setTimeout(() => { if (cp) cp.textContent = '复制该字'; }, 1600);
+  };
+  fillDefs(zi);
+  fillStrokes(zi);
+  checkFonts();
+}
+
+/* ============ 字义（按需加载分片） ============ */
+function fillDefs(zi){
+  const init = $('defBox');
+  if (!init) return;
+  init.dataset.zi = zi;                    // 标记当前字，防止连按 ‹ › 时旧回调覆盖新内容
+  const slow = setTimeout(() => {
+    const b = $('defBox'), l = b && b.querySelector('.def-loading');
+    if (l && b.dataset.zi === zi) l.textContent = '释义载入中…（与字体分片共用带宽，稍候即出）';
+  }, 2200);
+  loadDefShard(defShardOf(zi)).then(ok => {
+    clearTimeout(slow);
+    const box = $('defBox');
+    if (!box || box.dataset.zi !== zi) return;      // 期间已切换字或关闭弹层
+    if (ok < 0) {
+      box.innerHTML = `<h3>字义<span>《汉语拼音辞典》</span></h3>` +
+        `<div class="def-empty">释义分片载入失败 <button id="defRetry">重试</button></div>`;
+      const rb = $('defRetry');
+      if (rb) rb.onclick = () => {
+        box.innerHTML = `<h3>字义<span>正在载入…</span></h3><div class="def-loading">重新载入中…</div>`;
+        fillDefs(zi);
+      };
+      const sb = $('swBox'); if (sb) sb.remove();
+      return;
+    }
+    const e = defOf(zi);
+    fillShuowen(zi, e);                  // 字源与释义同一分片，一并处理
+    if (!e || !e.d || !e.d.length) {
+      box.innerHTML = `<h3>字义<span>《汉语拼音辞典》</span></h3>` +
+        `<div class="def-empty">该字暂无释义数据（词典未收录）</div>`;
+      return;
+    }
+    const body = e.d.map(([py, exps, quotes]) =>
+      `<div class="def-pron"><div class="py">${esc(py)}` +
+        (e.d.length > 1 ? '' : (e.st ? `<i>${ST_TXT[e.st] || e.st}结构</i>` : '')) + `</div>` +
+      (exps || []).map(x => `<p>${esc(x)}</p>`).join('') +
+      (quotes || []).map(q => `<p class="quote">${esc(q)}</p>`).join('') +
+      `</div>`).join('');
+    box.innerHTML = `<h3>字义<span>《汉语拼音辞典》· 共 ${e.d.length} 个读音</span></h3>${body}` +
+      `<div class="def-src">释义与古籍书证取自开源《汉语拼音辞典》，生僻字释义的准确性请以《汉语大字典》等纸本辞书复核</div>`;
+  });
+}
+
+/* ============ 字源：《说文解字》及历代注本（与释义同分片） ============ */
+function fillShuowen(zi, e){
+  const box = $('swBox');
+  if (!box) return;
+  if (box.dataset.zi && box.dataset.zi !== zi) return;   // 已由更晚的字接管，避免覆盖
+  box.dataset.zi = zi;
+  const sw = (e && e.sw) || [];
+  if (!sw.length) { box.remove(); return; }
+  const isNote = sw.some(([bk]) => /注|新附/.test(bk));
+  box.innerHTML = `<h3>字源 · 说文解字<span>${sw.length} 条` +
+    (isNote ? ' · 含段注 / 新附' : ' · 汉·许慎') + `</span></h3>` +
+    sw.map(([bk, txt]) =>
+      `<p class="sw-item"><span class="sw-bk">${esc(bk)}</span>${esc(txt)}</p>`).join('') +
+    `<div class="def-src">《说文解字》据小篆字形分析构造与本义，是考索字源的基本依据；` +
+    `涉及形义争议处请以《说文解字注》等纸本复核</div>`;
+}
+
+/* ============ 笔顺动画（hanzi-writer + hanzi-writer-data，按需从 CDN 取） ============ */
+const HW_DATA = 'https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0.1/';
+const HW_LIB = 'https://cdn.jsdelivr.net/npm/hanzi-writer@3.7.0/dist/hanzi-writer.min.js';
+let hwLib = null;
+function loadHwLib(){
+  if (hwLib) return hwLib;
+  hwLib = new Promise(res => {
+    if (window.HanziWriter) return res(true);
+    const s = document.createElement('script');
+    s.src = HW_LIB;
+    s.onload = () => res(!!window.HanziWriter);
+    s.onerror = () => res(false);
+    document.head.appendChild(s);
+  });
+  return hwLib;
+}
+async function fetchStrokeData(ch){
+  // 先查字表：笔顺库仅收录 9565 字，未收录的字直接跳过，省掉一次必然 404 的请求
+  if (typeof HW_SET !== 'undefined' && HW_SET.indexOf(ch) < 0) return null;
+  try {                                   // file:// 下 fetch 会被浏览器拦截，此时静默降级
+    const r = await fetch(HW_DATA + encodeURIComponent(ch) + '.json');
+    if (!r.ok) return null;
+    const j = await r.json();
+    return (j && j.strokes && j.strokes.length) ? j : null;
+  } catch (e) { return null; }
+}
+async function fillStrokes(zi){
+  const init = $('strokeBox');
+  if (!init) return;
+  init.dataset.zi = zi;                   // 连按 ‹ › 时防止旧回调覆盖新内容
+  const [libOK, data] = await Promise.all([loadHwLib(), fetchStrokeData(zi)]);
+  const box = $('strokeBox');
+  if (!box || box.dataset.zi !== zi) return;
+  if (!libOK) {
+    box.innerHTML = `<h3>笔顺<span>hanzi-writer</span></h3>` +
+      `<div class="def-empty">动画组件未能加载 <button class="hw-btn" id="hwRetry">重试</button></div>`;
+    const rb = $('hwRetry');
+    if (rb) rb.onclick = () => { hwLib = null; fillStrokes(zi); };
+    return;
+  }
+  if (!data) {
+    box.innerHTML = `<h3>笔顺<span>hanzi-writer-data</span></h3>` +
+      `<div class="def-empty">该字暂无笔顺数据（笔顺库收录约 9000 个常用字，生僻字多未收录）</div>`;
+    return;
+  }
+  const n = data.strokes.length;
+  const rad = (data.radStrokes && data.radStrokes.length) ? data.radStrokes.length : null;
+  box.innerHTML = `<h3>笔顺<span>${n} 画${rad ? ` · 部首 ${rad} 画` : ''} · 点击重播</span></h3>` +
+    `<div class="hw-row"><div class="hw-target" id="hwTarget"></div>` +
+    `<div class="hw-side">共 <b>${n}</b> 笔，逐笔演示书写顺序。<br>` +
+    `<button class="hw-btn" id="hwPlay">重播</button>` +
+    `<button class="hw-btn" id="hwSlow">慢速演示</button><br>` +
+    `<span style="color:var(--faint)">笔画数据取自开源 hanzi-writer-data（Make Me a Hanzi 项目）</span>` +
+    `</div></div>`;
+  const mk = opt => {
+    $('hwTarget').innerHTML = '';
+    return HanziWriter.create('hwTarget', zi, Object.assign({
+      width: 172, height: 172, padding: 10, showOutline: true, showCharacter: true,
+      strokeColor: '#2d2a24', outlineColor: '#e0d8c6', radicalColor: '#b5493a',
+      strokeAnimationSpeed: 1, delayBetweenStrokes: 300, delayBetweenLoops: 1400,
+      charDataLoader: (c, cb) => cb(data)
+    }, opt || {}));
+  };
+  let w = mk();
+  w.animateCharacter();
+  $('hwTarget').onclick = () => w.animateCharacter();
+  $('hwPlay').onclick = () => { w = mk(); w.animateCharacter(); };
+  $('hwSlow').onclick = () => { w = mk({ strokeAnimationSpeed: 0.35, delayBetweenStrokes: 700 }); w.animateCharacter(); };
+}
+
+/* ============ 繁体 / 异体写法区块 ============ */
+function varSection(r){
+  const items = [];
+  (r.f || []).forEach(w => items.push([w, 1, 0]));    // 官方繁体
+  (r.y || []).forEach(w => items.push([w, 2, 0]));    // 官方异体
+  // 反查字库中指向本字的表外异体/俗字（Unihan、OpenCC、繁简索引、汉字字典、CC-CEDICT）
+  const i = CMAP[r.c], seen = {}, merged = []; items.forEach(x => seen[x[0]] = 1);
+  let nMore = 0;
+  if (i != null) (REV_VAR[i] || []).forEach(w => {
+    if (seen[w]) return;
+    seen[w] = 1; nMore++;
+    merged.push([w, (VI[w] && VI[w][0][1]) || 2, 1]);
+  });
+  const all = items.concat(merged);
+  if (!all.length) return '';
+  const cards = all.map(([w, t, rev]) => {
+    const hit = VI[w], inStd = CMAP[w] != null;
+    const dst = inStd ? w : (hit ? CH[hit[0][0]].c : '');
+    const right = rev ? (VT_SRC_S[t] || '异体字库')
+                      : (dst ? (inStd ? '亦为规范字' : '→ ' + dst) : '表外字');
+    return `<div class="var-item" data-v="${w}" title="点击查看 ${w}"><span class="g">${w}</span>` +
+      `<span class="m"><span class="t">${vtTxt(t)}</span>` +
+      `<span class="r">${esc(right)}</span></span></div>`;
+  }).join('');
+  const sub = nMore ? `官方 ${items.length} 种 · 异体字库 ${nMore} 种，点击查看`
+                    : `共 ${items.length} 种，点击查看`;
+  return `<div class="var-block"><h3>繁体 / 异体写法<span>${sub}</span></h3>` +
+    `<div class="var-list">${cards}</div></div>`;
+}
+
+/* 表外异体字的独立详情：展示字形、来源、对应正字、部件结构 */
+function openVariantDetail(ch){
+  const hit = VI[ch];
+  if (!hit) {                       // 无对照：仅展示字形与部件
+    return showMini(ch, `<div class="var-empty">字库未收录「${ch}」，且无对应正字</div>`);
+  }
+  const dsts = hit.map(([i, t]) =>
+    `<div class="var-item" data-i="${i}"><span class="g">${CH[i].c}</span>` +
+    `<span class="m"><span class="t">${vtTxt(t)}</span><span class="r">${esc(CH[i].p[0])} · ${LV_TXT[CH[i].lv]}</span></span></div>`).join('');
+  const parts = (CZ[ch] || []).map(p => p.join(' + ')).join(' ／ ');
+  showMini(ch,
+    `<div class="hit-note">「<b>${ch}</b>」为表外${vtTxt(hit[0][1])}字` +
+    `<span style="color:var(--faint)"> · 依据 ${vtSrc(hit[0][1])}</span></div>` +
+    `<div class="var-block"><h3>对应正字<span>点击查看多体字形</span></h3><div class="var-list">${dsts}</div></div>` +
+    (parts ? `<div class="var-block"><h3>部件结构</h3><div class="comp-out"><span class="parts">${parts}</span></div></div>` : ''));
+}
+/* 异体字详情共用弹层：大字形 + 自定义内容 */
+function showMini(ch, body){
+  $('modal').innerHTML =
+    `<div class="m-head"><div class="m-zi" style="font-family:'Songti SC','Source Han Serif SC VF',serif">${ch}</div>` +
+    `<div class="m-info"><span class="lv">表外字</span><div>不在《通用规范汉字表》8105 字内</div></div>` +
+    `<button class="m-close" id="close">✕</button></div>${body}` +
+    `<div class="m-foot">异体字以系统宋体呈现（CDN 书法字库多未收录生僻字形）</div>`;
+  $('overlay').classList.add('show');
+  $('close').onclick = closeDetail;
+  document.querySelectorAll('#modal .var-item[data-i]').forEach(el =>
+    el.onclick = () => openDetail(+el.dataset.i, {from: ch, type: (VI[ch] || [[0, 1]])[0][1]}));
+}
+document.addEventListener('click', e => {
+  const el = e.target.closest('.var-item[data-v]');
+  if (!el) return;
+  const w = el.dataset.v;
+  if (CMAP[w] != null) openDetail(CMAP[w]); else openVariantDetail(w);
+});
+
+/* ---- 每张书体卡片的状态检测：加载中 / 已加载 / 未收录 / 加载失败 ---- */
+function checkFonts(){
+  document.querySelectorAll('#modal .sty').forEach(card => {
+    const badge = card.querySelector('.fbadge');
+    const fam = badge.dataset.fam, ch = badge.dataset.ch;
+    if (!fam || !ch) return;   // 已预先判定为"未收录"的卡片，保持原徽标
+    const spec = `110px "${fam}"`;
+    const done = new Promise(r => { let t = setTimeout(() => r('timeout'), 15000);
+      document.fonts.load(spec, ch).then(f => { clearTimeout(t); r(f.length ? 'ok' : 'miss'); })
+        .catch(() => { clearTimeout(t); r('fail'); }); });
+    const isRegistered = () => [...document.fonts].some(f => f.family.replace(/['"]/g,'') === fam);
+    done.then(state => {
+      // CSS 未注册 => 字体文件源加载失败；注册但 load 为空 => 该字体确实没收录此字
+      if (state === 'ok' && document.fonts.check(spec, ch)) { badge.className = 'fbadge ok'; setTimeout(() => badge.style.display = 'none', 400); return; }
+      if (!isRegistered()) { badge.className = 'fbadge fail'; badge.innerHTML = '字体资源加载失败 · 重试'; }
+      else if (state === 'miss') { badge.className = 'fbadge miss'; badge.textContent = '未收录此字形'; }
+      else if (state === 'fail') { badge.className = 'fbadge fail'; badge.innerHTML = '字体加载失败 · 重试'; }
+      else { badge.className = 'fbadge fail'; badge.innerHTML = '网络较慢 · 重试'; }
+      badge.onclick = () => { badge.className = 'fbadge loading'; badge.innerHTML = '<i class="spin"></i>加载中'; retryFont(card); checkSingle(card, badge, fam, ch, spec); };
+    });
+  });
+}
+function checkSingle(card, badge, fam, ch, spec){
+  document.fonts.load(spec, ch).then(f => {
+    if (f.length && document.fonts.check(spec, ch)) { badge.className = 'fbadge ok'; setTimeout(() => badge.style.display = 'none', 400); }
+    else { badge.className = 'fbadge miss'; badge.textContent = '该字体未收录此字形'; }
+  });
+}
+/* 重新加载该字体 CSS：主源失败过则换备源 */
+function retryFont(card){
+  const key = card.dataset.cls.slice(2);
+  if (key === 'zhuan' || key === 'seal' || key === 'orac' || key === 'li') return;   // 本地字体无需切换源
+  const link = document.querySelector(`link[data-f="${key}"]`);
+  if (link) link.href = swapCdn(link.href);
+}
+function navDetail(i, dir){
+  const list = (curList && curList.length) ? curList : null;
+  if (!list) return openDetail(i + dir);
+  const pos = list.indexOf(i);
+  if (pos === -1) return openDetail(list[0]);
+  const np = (pos + dir + list.length) % list.length;
+  openDetail(list[np]);
+}
+function closeDetail(){ $('overlay').classList.remove('show'); }
+$('overlay').onclick = e => { if (e.target === $('overlay')) closeDetail(); };
+document.addEventListener('keydown', e => {
+  if (!$('overlay').classList.contains('show')) return;
+  if (e.key === 'Escape') closeDetail();
+  if (e.key === 'ArrowLeft') $('prev') && $('prev').click();
+  if (e.key === 'ArrowRight') $('next') && $('next').click();
+});
+
+/* ============ 事件 ============ */
+const HINT = {
+  smart: '拼音支持带调与不带调 · 输入汉字直接查看多种书体 · 繁体/异体字自动反查正字',
+  stroke:'按总笔画数检字，可用部首进一步限定；不知读音、不明部首时最省事的检索方式',
+  word:  '输入词语查拼音与简繁写法（CC-CEDICT 12 万条），点词中单字可看其多体字形',
+  comp:  '输入部件的汉字组合（顺序无关），如「士 口」查「吉」；单字则显示其部件结构',
+  gene:  '粘贴家谱原文，自动列出繁体字、异体字、旧字形及对应正字，并生成规范转写',
+};
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  ++queryVersion;
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+  t.classList.add('on');
+  mode = t.dataset.mode;
+  const rad = $('radbar'), q = $('q');
+  rad.classList.toggle('show', mode === 'radical');
+  $('radTabs').classList.toggle('show', mode === 'radical');
+  $('qrow').style.display = (mode === 'gene' || mode === 'stroke') ? 'none' : 'flex';
+  $('genePanel').classList.toggle('show', mode === 'gene');
+  $('strokePanel').classList.toggle('show', mode === 'stroke');
+  $('hint').innerHTML = HINT[mode] || HINT.smart;
+  $('hint').style.display = (mode === 'radical') ? 'none' : 'block';
+  if (mode === 'radical') {
+    q.value = ''; q.placeholder = '输入部首直接定位（如 力 / 氵 / 艹），或点击下方部首'; q.disabled = false;
+    setRadKind(radKind);          // 重建部首栏（沿用上次选择的归部体系）
+    q.focus();
+  } else if (mode === 'stroke') {
+    buildStrokeBar();
+    renderStroke(curStroke);
+  } else if (mode === 'gene') {
+    renderHome();
+    $('geneText').focus();
+  } else {
+    q.disabled = false;
+    q.placeholder = mode === 'comp' ? '输入部件，如：士 口（或 士+口）'
+                  : mode === 'word' ? '输入词语，如：家谱 / 祠堂 / 中國 / 昭穆'
+                                    : '输入拼音（yong / hǎo）或汉字（书 / 書 / 喆），回车查询';
+    q.value = '';
+    renderHome();
+    q.focus();
+  }
+});
+function submitQuery(){
+  const v = $('q').value;
+  if (mode === 'word') searchWord(v);
+  else if (mode === 'comp') searchComp(v);
+  else if (mode === 'radical') buildRadbar(v);
+  else searchSmart(v);
+}
+$('go').onclick = submitQuery;
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') submitQuery(); });
+$('q').addEventListener('input', () => { if (mode === 'radical') buildRadbar($('q').value); });
+$('geneGo').onclick = () => renderGene($('geneText').value);
+
+/* ============ 字体资源状态 ============ */
+/* 动态注入 CDN 字体 CSS：不阻塞首屏；主源失败自动切备源 */
+const FONT_PKGS = [
+  ['kai',  'cn-fontsource-lxgw-wen-kai-screen/font.css'],
+  ['song', 'cn-fontsource-source-han-serif-sc-vf-regular/font.css'],
+  ['mao',  '@fontsource/ma-shan-zheng/index.css'],
+  ['xing', '@fontsource/zhi-mang-xing/index.css'],
+  ['cao',  '@fontsource/liu-jian-mao-cao/index.css'],
+];
+/* 主源 unpkg：实测其对全部 woff2 分片返回 200 + CORS 头；
+   jsDelivr 对部分分片(L3、L2 系列)返回 503，故降级为备源 */
+const CDN_MAIN = 'https://unpkg.com/', CDN_ALT = 'https://cdn.jsdelivr.net/npm/';
+function loadFontCss(){
+  FONT_PKGS.forEach(([k, path]) => {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet'; l.dataset.f = k;
+    l.href = CDN_MAIN + path;
+    l.onerror = () => { l.onerror = null; l.href = CDN_ALT + path; };   // 主源失败切备源，仅重试一次
+    document.head.appendChild(l);
+  });
+}
+document.querySelectorAll('link[data-f]').forEach(l => l.remove());  // 清理静态 link(若有)
+function swapCdn(url){   // jsDelivr <-> unpkg 互切
+  return url.startsWith(CDN_MAIN) ? CDN_ALT + url.slice(CDN_MAIN.length)
+       : url.startsWith(CDN_ALT)  ? CDN_MAIN + url.slice(CDN_ALT.length) : url;
+}
+function fontsRegistered(){   // STYLES: [cls, name, src, hot, fam, bit]
+  return STYLES.filter(s => [...document.fonts].some(f => f.family.replace(/['"]/g,'') === s[4])).length;
+}
+function fontStatCheck(tries){
+  const ok = fontsRegistered(), total = STYLES.length;
+  const el = $('fontStat');
+  if (ok === total) {
+    el.className = 'font-stat';
+    el.innerHTML = `<span class="dot"></span>字体资源已就绪 <b>${ok}/${total}</b> — ${total} 种书体可用`;
+    return;
+  }
+  el.className = 'font-stat err';
+  el.innerHTML = `<span class="dot"></span>字体资源装入 <b>${ok}/${total}</b>` +
+    ` <button id="fontRetry">重试</button> <span>加载中的书体会先显示系统字体，稍后自动替换；若持续失败说明当前网络无法访问字体 CDN</span>`;
+  $('fontRetry').onclick = () => {
+    el.innerHTML = '<span class="dot"></span>正在切换备源并重新装入…';
+    document.querySelectorAll('link[data-f]').forEach(l => { l.href = swapCdn(l.href); });
+    setTimeout(() => fontStatCheck(0), 6000);
+  };
+  if (tries > 0) setTimeout(() => fontStatCheck(tries - 1), 9000);   // 慢网继续等待
+}
+
+/* ============ 启动 ============ */
+buildRadbar();
+setRadKind(0, false);
+$('stRd').textContent = RDS.length;
+$('stRdK').textContent = RDSK.length;
+renderHome();
+loadFontCss();
+setTimeout(() => fontStatCheck(2), 5000);
+</script>
+</body>
+</html>
