@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-DEPLOY_USER="${DEPLOY_USER:-root}"
-DEPLOY_HOST="${DEPLOY_HOST:-150.158.45.203}"
-DEPLOY_PORT="${DEPLOY_PORT:-520}"
+DEPLOY_USER=""
+DEPLOY_HOST=""
+DEPLOY_PORT=""
 DEPLOY_PATH="${DEPLOY_PATH:-/www/wwwroot/character.xm4021.com}"
 BACKUP_PATH="${BACKUP_PATH:-${DEPLOY_PATH}.backups}"
 HEALTH_URL="${HEALTH_URL:-}"
@@ -22,15 +22,14 @@ Usage:
   ./scripts/deploy-artifact.sh --full --dry-run  仅校验、打包，不连接服务器
 
 Environment:
-  DEPLOY_USER   SSH 用户，默认 root
-  DEPLOY_HOST   服务器 IP，默认 150.158.45.203
-  DEPLOY_PORT   SSH 端口，默认 520
   DEPLOY_PATH   网站根目录，默认 /www/wwwroot/character.xm4021.com
   BACKUP_PATH   备份目录，默认 ${DEPLOY_PATH}.backups（必须在网站目录外）
   HEALTH_URL    可选的发布后 HTTP 检查地址，例如 https://character.xm4021.com/
   RUN_CHECK=0   跳过本地离线资源完整性校验
 
 Notes:
+  发布和远端预览时在终端输入服务器 IP/域名、SSH 端口和用户名，无默认值。
+  连接参数只用于本次执行，不写入文件；--dry-run 不需要输入连接参数。
   使用 SSH 密钥或交互式认证，不在脚本中保存密码。
   增量模式需要两端安装 rsync，按内容校验跳过未变化的文件。
   显示变化文件、上传进度和传输统计；资源同步成功后才更新首页。
@@ -56,11 +55,6 @@ for argument in "$@"; do
 done
 [[ "$PREVIEW" == 0 || ( "$FULL" == 0 && "$DRY_RUN" == 0 ) ]] || fail "--preview 不能与 --full 或 --dry-run 一起使用。"
 
-# 限制远端参数字符，避免 SSH 的远端 shell 将路径解释为命令。
-[[ "$DEPLOY_USER" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_-]*$ ]] || fail "无效的 SSH 用户。"
-[[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || fail "无效的服务器地址。"
-[[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] || fail "无效的 SSH 端口。"
-[[ $((10#$DEPLOY_PORT)) -ge 1 && $((10#$DEPLOY_PORT)) -le 65535 ]] || fail "SSH 端口超出范围。"
 [[ "$RUN_CHECK" == 0 || "$RUN_CHECK" == 1 ]] || fail "RUN_CHECK 只能为 0 或 1。"
 for path in "$DEPLOY_PATH" "$BACKUP_PATH"; do
   [[ "$path" =~ ^/[a-zA-Z0-9._/-]+$ && "$path" != *'//'* && "$path" != */ ]] || fail "请使用无空格的绝对目录路径，且不以 / 结尾。"
@@ -100,6 +94,23 @@ if [[ "$RUN_CHECK" == 1 ]]; then
   command -v python3 >/dev/null 2>&1 || fail "资源校验需要 Python 3。"
   log "校验离线资源"
   python3 scripts/sync_offline_assets.py --check
+fi
+
+if [[ "$DRY_RUN" == 0 ]]; then
+  # 从控制终端读取，避免连接参数与后续 SSH/rsync 的标准输入混在一起。
+  if ! { exec 3<> /dev/tty; } 2>/dev/null; then
+    fail "请在交互式终端运行，以输入服务器地址、端口和用户名；本地检查可使用 --dry-run。"
+  fi
+  read -r -p "服务器 IP 或域名：" DEPLOY_HOST <&3 || fail "未读取到服务器地址。"
+  read -r -p "SSH 端口：" DEPLOY_PORT <&3 || fail "未读取到 SSH 端口。"
+  read -r -p "SSH 用户名：" DEPLOY_USER <&3 || fail "未读取到 SSH 用户名。"
+  exec 3>&-
+
+  # 限制远端参数字符，避免 SSH 的远端 shell 将输入解释为命令。
+  [[ "$DEPLOY_USER" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_-]*$ ]] || fail "无效的 SSH 用户。"
+  [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || fail "无效的服务器地址。"
+  [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] || fail "无效的 SSH 端口。"
+  [[ $((10#$DEPLOY_PORT)) -ge 1 && $((10#$DEPLOY_PORT)) -le 65535 ]] || fail "SSH 端口超出范围。"
 fi
 
 ARTIFACT_PATH="$(mktemp "${TMPDIR:-/tmp}/guwenzi-$(date +%Y%m%d%H%M%S).XXXXXX")"
@@ -192,7 +203,7 @@ ARTIFACT_BYTES="$((ARTIFACT_BYTES))"
 ARTIFACT_SIZE="$(awk -v bytes="$ARTIFACT_BYTES" 'BEGIN { printf "%.2f MiB", bytes / 1048576 }')"
 log "发布包大小：${ARTIFACT_SIZE}（${ARTIFACT_BYTES} 字节）"
 if [[ "$DRY_RUN" == 1 ]]; then
-  log "打包成功，目标 ${REMOTE}:${DEPLOY_PORT}${DEPLOY_PATH}；未连接服务器，临时包将在退出时清理。"
+  log "打包成功；未连接服务器，临时包将在退出时清理。"
   exit 0
 fi
 

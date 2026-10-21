@@ -28,8 +28,8 @@
 - 内部版权信息：Copyright (c) Peichao, Qin, 2023. All rights reserved.
 - 官方资源：[镜原甲骨字库下载](https://oracular.azurewebsites.net/glyphs/download)。
 - 字形与编码说明：[官方字库说明](https://oracular.azurewebsites.net/glyphs/docs)。
-- 官网声明字体使用 SIL Open Font License 1.1，可用于学习、研究及商业用途；
-  再分发或修改时应遵循该许可证，并保留相应版权与许可信息。
+- 项目已有记录记载其采用 SIL Open Font License 1.1，但本地未附完整许可副本和下载版本凭据；
+  当前官网可访问不等于已核实本地文件的许可，进一步再分发或修改前需补齐核验。
 
 官网字库包含大量异体与私用区字形，不代表所有现代汉字都有直接对应的甲骨字形。
 当前页面用现代汉字码位查找本地字体，覆盖记录在 `data/coverage_orac.txt`。
@@ -59,6 +59,10 @@ python3 scripts/build_lishu_coverage.py
 
 - `shuowen.woff2`：说文小篆，CSS 字体名 `ShuoWenZhuan`。
 - `ysbzt.woff2`：峄山碑篆体，CSS 字体名 `YiShanBeiZhuan`。
+
+这两套本地文件尚未完整保留作者授权、下载版本及转换/合并过程的凭据，
+不能仅凭其他网站的“免费商用”标签，或候选上游的许可，认定当前文件可转换和再分发。
+资源使用情况与待核实事项见 [项目来源清单](../README.md) 和 [数据许可说明](../assets/licenses/README.md)。
 
 篆书卡片按 `峄山碑 → 说文小篆` 的顺序选择同一汉字的字形；
 两者均缺字时才显示“未收录”，并保留现代字形作为灰色参照。
