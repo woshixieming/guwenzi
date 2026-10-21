@@ -163,12 +163,78 @@ python3 server/ocr_server.py --config /etc/guwenzi/ocr.json --bind 127.0.0.1 --p
 
 ### 线上接入
 
-现有发布脚本继续只部署静态运行文件，新增 `assets/` 下的索引、脚本、样式会自动纳入增量发布。
-OCR 服务及真实配置需单独部署、启动，静态上传不会启动 Python 进程，也不会更新它的配置。
-建议将服务代码置于独立目录（例如 `/opt/guwenzi/server/`），真实配置置于 `/etc/guwenzi/`，
-通过现有进程管理工具保持服务运行；由 Nginx 将同域 `/api/ocr` 和 `/api/ocr/status` 转发到本机服务。
-保留 `Host` 请求头；若代理改变 Host，则在私有配置的 `allowed_origins` 中填写实际网站来源。
-Nginx 的请求体限制需至少 6 MiB、读取超时需大于上游超时，其他路径继续作为静态文件提供。
+默认命令仍只发布静态网站；需要 OCR 后端时使用以下选项，连接地址、端口和 SSH 用户名仍在终端输入：
+
+```bash
+./scripts/deploy-artifact.sh --with-ocr --dry-run  # 本地检查，不连接服务器
+./scripts/deploy-artifact.sh --with-ocr --preview  # 检查远端环境并预览静态变更，不修改服务器
+./scripts/deploy-artifact.sh --with-ocr            # 先部署后端，再增量发布网站
+./scripts/deploy-artifact.sh --ocr-only            # 只更新后端并重启服务，不检查或上传完整字库
+```
+
+`--with-ocr` 也可与 `--full` 组合。`--ocr-only` 支持 `--dry-run`、`--preview`，不与 `--full` 组合。
+远端需要 Python 3.9+、tar 和运行中的 systemd；SSH 用户需要 root 权限或免交互 sudo 权限。
+脚本不安装系统依赖，也不自动配置 sudo。首次部署需要系统的 useradd/nologin 创建专用受限账号。
+
+后端默认部署结构如下，**网站目录中不会新增 server/ 文件夹**：
+
+```text
+/opt/guwenzi-ocr/
+  releases/<发布编号>/server/ocr_server.py
+  current -> releases/<发布编号>
+/etc/guwenzi/ocr.json                      # 私有配置，不在网站或代码目录内
+/etc/systemd/system/guwenzi-ocr.service     # 专用 systemd 服务
+```
+
+可用环境变量更改以下部署参数；这些参数不包含模型密钥：
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `OCR_DEPLOY_PATH` | `/opt/guwenzi-ocr` | 专用代码目录，必须与网站目录分离 |
+| `OCR_CONFIG_PATH` | `/etc/guwenzi/ocr.json` | 私有配置文件，位于网站及代码目录之外的专用目录 |
+| `OCR_SERVICE_NAME` | `guwenzi-ocr` | systemd 服务名，不含 `.service` 后缀 |
+| `OCR_PORT` | `8010` | 本机监听端口，允许 1024–65535 |
+
+首次部署会从关闭状态的模板创建私有配置；后续发布保留文件内容，不覆盖密钥、模型或 enabled 等参数。
+配置目录权限调整为 0750，配置文件调整为 root:服务组、0640，服务以专用 guwenzi-ocr 账号读取配置并运行。
+本地模板若包含密钥、模型或开启状态，脚本会拒绝上传。
+
+代码通过一个独立小包上传，显示包大小与 SCP 进度，不重复上传字体。服务器校验配置后切换版本，
+创建或更新带本脚本标记的 systemd 服务，重启并检查 `/api/ocr/status`，最后设置开机启动。
+未填写模型参数时，只要服务健康即认为部署成功，并提示“模型参数未配置”；部署检查不调用外部大模型。
+新版本启动或健康检查失败会恢复旧的代码链接和服务定义并请求重启旧服务，命令返回失败；
+首次部署失败则移除新建服务定义。历史代码版本保留，不自动清理。
+已有非本脚本管理的同名服务或代码目录会被拒绝覆盖；部署后端和网站不构成跨组件的原子发布。
+
+部署成功后，在服务器私有配置中填写模型参数并开启 enabled，然后执行：
+
+```bash
+sudo systemctl restart guwenzi-ocr
+sudo systemctl status guwenzi-ocr --no-pager
+curl --fail http://127.0.0.1:8010/api/ocr/status
+```
+
+`configured: true` 表示配置字段齐备，不证明模型可用或额度充足；需再用一张实际截图验证识别。
+修改了服务名、端口时，上述命令及下方反向代理配置也需相应调整。
+
+Nginx 仍需在对应站点 server 块内手动配置，脚本不修改生产站点配置。例如使用默认端口时：
+
+```nginx
+location = /api/ocr {
+    client_max_body_size 6m;
+    proxy_pass http://127.0.0.1:8010;
+    proxy_set_header Host $http_host;
+    proxy_read_timeout 70s;
+}
+
+location = /api/ocr/status {
+    proxy_pass http://127.0.0.1:8010;
+    proxy_set_header Host $http_host;
+}
+```
+
+保留 Host 请求头；若代理改变 Host，则在私有配置的 allowed_origins 中填写实际网站来源。
+配置后使用服务器现有的 Nginx 检查及重载方式生效，再访问网站的 `/api/ocr/status` 确认转发成功。
 
 服务不向客户端接受模型、API 地址或 API 密钥，拒绝跨来源请求、远程图片 URL 和上游重定向；
 限制请求体和响应体大小，不记录图片或上游错误正文。配置留空时不会调用任何外部模型。
@@ -183,7 +249,9 @@ python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/build_variant_index.py --check
 python3 scripts/sync_offline_assets.py --check
 bash -n scripts/deploy-artifact.sh
+bash -n scripts/deploy-ocr-remote.sh
 ```
 
 后端测试使用本地模拟 OpenAI 服务，不使用真实密钥、不调用外部模型。
+OCR 部署测试在临时目录内模拟 SSH、systemd、账号和权限操作，并启动真实本地 OCR 进程；不更改本机系统服务。
 页面检查可通过可选 Python 服务运行，验证部首筛选、多个候选、截图裁剪、未配置提示和家谱歧义保留。
