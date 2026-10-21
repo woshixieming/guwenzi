@@ -1,0 +1,39 @@
+.tabs{flex-wrap:wrap}
+#q{min-width:0}
+.variant-panel{display:none;margin-top:12px}
+.variant-panel.show{display:block}
+.vf-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.vf-tools label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink2)}
+.vf-tools input:not([type=checkbox]),.vf-tools select{max-width:180px;padding:7px 9px;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:7px;font:inherit}
+.vf-tools input[type=number]{width:78px}
+.vf-tools .btn{min-height:36px;padding:6px 16px}
+.vf-radicals{max-height:200px;overflow:auto;display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 14px}
+.vf-radicals .rchip{font-family:'Source Han Serif SC VF',serif;min-width:46px;height:36px}
+.vf-radicals button small{font-size:12px}
+.vf-status{color:var(--ink2);font-size:12px;margin:10px 0;white-space:pre-wrap}
+.vf-status.error{color:var(--cinnabar)}
+.vf-card{font:inherit;color:var(--ink);width:100%}
+.vf-card .big{font-family:'Source Han Serif SC VF','Songti SC',serif;font-size:44px}
+.vf-card .rd{overflow-wrap:anywhere}
+.vf-card .py{min-height:18px}
+.vf-result{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin:12px 0}
+.vf-result .original{font:64px/1.2 'Source Han Serif SC VF','Songti SC',serif;margin-right:15px}
+.vf-result .candidate{font:38px/1.4 'Source Han Serif SC VF','Songti SC',serif;color:var(--cinnabar)}
+.vf-result p{color:var(--ink2);margin:7px 0;font-size:13px}
+.vf-result small{color:var(--faint)}
+.vf-paging{display:flex;justify-content:center;align-items:center;gap:12px;margin:18px 0}
+button:disabled{opacity:.5;cursor:not-allowed}
+.vf-crop{display:none;gap:16px;align-items:start;grid-template-columns:minmax(0,1fr) 150px;margin-top:12px}
+.vf-crop.show{display:grid}
+#vfCanvas{width:100%;height:auto;display:block;touch-action:none;cursor:crosshair;border:1px solid var(--line);background:#fff;border-radius:8px}
+#vfPreview{width:128px;height:128px;object-fit:contain;background:white;border:1px solid var(--line)}
+.vf-crop label{display:block;font-size:12px;color:var(--ink2);margin-bottom:7px}
+.vf-range{width:100%;margin:3px 0 10px}
+.vf-ocr-candidates{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.vf-ocr-candidates button{padding:10px 15px;max-width:220px;text-align:left;overflow-wrap:anywhere;background:var(--card);border:1px solid var(--line);border-radius:10px;color:var(--ink)}
+.vf-ocr-candidates b{display:block;font:40px 'Source Han Serif SC VF',serif}
+.vf-ocr-candidates small{font-size:12px}
+@media(max-width:600px){
+  .tab{padding:5px 11px}.search-card{padding:14px 12px}.search-row{gap:6px}.search-row .btn{padding:0 13px}
+  .vf-crop{grid-template-columns:minmax(0,1fr)}.vf-tools{gap:8px}.vf-result .original{font-size:48px}
+}

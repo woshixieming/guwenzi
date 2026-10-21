@@ -7,6 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23b5493a'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23fffdf8' font-family='Kaiti SC,serif'%3E书%3C/text%3E%3C/svg%3E">
 <meta name="description" content="汉字书体查询：楷体、繁体、隶书、行书、草书、篆书多书体对照，支持拼音查询与部首检索，收录通用规范汉字表 8105 字">
 <!-- 本地书法字体 CSS 动态装入，字形分片按需读取。 -->
+<link rel="stylesheet" href="assets/variant-finder.css">
 <style>
 :root{
   --paper:#f6f2e9; --card:#fffdf8; --line:#e5ddcc; --ink:#2d2a24; --ink2:#6f6858;
@@ -299,6 +300,7 @@ footer a:hover{text-decoration:underline}
   <div class="search-card">
     <div class="tabs">
       <button class="tab on" data-mode="smart">智能查询</button>
+      <button class="tab" data-mode="variant">异体字查找</button>
       <button class="tab" data-mode="radical">部首浏览</button>
       <button class="tab" data-mode="stroke">笔画检字</button>
       <button class="tab" data-mode="word">词语</button>
@@ -310,6 +312,51 @@ footer a:hover{text-decoration:underline}
       <button class="btn" id="go">查 询</button>
     </div>
     <div class="hint" id="hint">拼音支持带调与不带调 · 输入汉字直接查看多种书体 · 繁体/异体字自动反查正字</div>
+    <section class="variant-panel" id="variantPanel" aria-label="异体字查找">
+      <div class="vf-tools">
+        <button type="button" class="copy-btn" data-vf-mode="radical" aria-pressed="true">按部首找</button>
+        <button type="button" class="copy-btn" data-vf-mode="ocr" aria-pressed="false">截图找字</button>
+      </div>
+      <div id="vfStatus" class="vf-status" role="status" aria-live="polite"></div>
+      <div id="vfRadicalMode">
+        <div class="vf-tools">
+          <label>部首<select id="vfRadical"><option value="">全部部首</option></select></label>
+          <label>笔画方式<select id="vfStrokeKind"><option value="total">总笔画</option><option value="remaining">部外笔画</option></select></label>
+          <label>笔画数<input id="vfStrokes" type="number" min="0" max="100" placeholder="不限"></label>
+          <label><input type="checkbox" id="vfNearby">包含相邻笔画 ±1</label>
+          <label><input type="checkbox" id="vfMapped" checked>仅显示有对应或参考关系的字</label>
+          <label>可辨部件<input id="vfParts" type="text" maxlength="12" placeholder="可选，如：木"></label>
+          <button type="button" class="btn" id="vfFilter">筛选</button>
+          <button type="button" class="copy-btn" id="vfReset">重置</button>
+        </div>
+        <div class="vf-radicals" id="vfRadicals" aria-label="按笔画分组的部首"></div>
+      </div>
+      <div id="vfOcrMode" hidden tabindex="0" aria-label="可在此粘贴截图">
+        <div class="vf-tools">
+          <label>选择截图或照片<input id="vfFile" type="file" accept="image/png,image/jpeg,image/webp"></label>
+          <button type="button" class="copy-btn" id="vfCheckService">重新检查服务</button>
+        </div>
+        <p class="vf-status">电脑可在此粘贴截图，手机可选择照片。请框选一个字；点击识别后才会发送选区图片。</p>
+        <p id="vfOcrStatus" class="vf-status" role="status" aria-live="polite"></p>
+        <div class="vf-crop" id="vfCrop">
+          <div>
+            <canvas id="vfCanvas" aria-label="拖动框选目标字；也可使用下方选区滑块"></canvas>
+            <label>选区左边距<input id="vfX" class="vf-range" type="range" min="0" max="99" value="0"></label>
+            <label>选区上边距<input id="vfY" class="vf-range" type="range" min="0" max="99" value="0"></label>
+            <label>选区宽度<input id="vfW" class="vf-range" type="range" min="1" max="100" value="100"></label>
+            <label>选区高度<input id="vfH" class="vf-range" type="range" min="1" max="100" value="100"></label>
+          </div>
+          <div><label for="vfPreview">实际发送的选区预览</label><img id="vfPreview" alt="裁剪后的目标字" width="128" height="128">
+            <button type="button" class="copy-btn" id="vfFullImage">使用整张图</button></div>
+        </div>
+        <div class="vf-tools">
+          <button type="button" class="btn" id="vfRecognize" disabled>识别选区</button>
+          <button type="button" class="copy-btn" id="vfCancel">取消识别</button>
+        </div>
+        <p id="vfOcrMessage" class="vf-status" role="status" aria-live="polite"></p>
+        <div id="vfOcrCandidates" class="vf-ocr-candidates"></div>
+      </div>
+    </section>
     <div class="rad-tabs" id="radTabs">
       <button class="rad-tab on" data-k="0">现代规范</button>
       <button class="rad-tab" data-k="1">传统康熙</button>
@@ -352,6 +399,7 @@ footer a:hover{text-decoration:underline}
   <div class="modal" id="modal"></div>
 </div>
 
+<script src="assets/variant-core.js"></script>
 <script src="data.js"></script>
 <script src="hwset.js"></script>
 <script src="fonts/seal-coverage.js"></script>
@@ -565,7 +613,7 @@ async function searchWord(raw){
     `命中 ${order.length} 条 · 精确 ${exact.length} · 前缀 ${prefix.length} · 含该字 ${within.length}`) +
     `<div class="wlist">${cards}</div>` +
     (order.length > 120 ? `<div style="font-size:12px;color:var(--faint);margin:8px 4px">仅列出前 120 条，可输入更完整的词缩小范围</div>` : '') +
-    `<div class="def-src" style="margin:14px 4px 0">词形与拼音取自 CC-CEDICT（CC BY-SA 3.0）；点击词语中的单字可查看其多体字形</div>`;
+    `<div class="def-src" style="margin:14px 4px 0">词形与拼音取自 CC-CEDICT（CC BY-SA 4.0）；点击词语中的单字可查看其多体字形</div>`;
   document.querySelectorAll('#result .witem .z').forEach(el => el.onclick = () => {
     const c = el.dataset.hz;
     if (CMAP[c] != null) return openDetail(CMAP[c]);
@@ -627,24 +675,11 @@ const EXT_N = 36249;   // 扩展库字数（构建脚本产出，用于文案展
 
 function searchSmart(raw){
   const version = ++queryVersion;
+  VariantFinder.leave();
   const q = raw.trim();
   if (!q) return renderHome();
   if (isHan(q)) {
-    const ch = [...q].find(c => isHanOne(c));
-    const i = CMAP[ch];
-    if (i != null) return openDetail(i);
-    // 规范字表外 → 走繁/异体反查
-    const hit = VI[ch];
-    if (hit) { renderVariantHit(ch, hit); return openDetail(hit[0][0], {from: ch, type: hit[0][1]}); }
-    // 仍未命中 → 查扩展字库（表外生僻字 / 日本汉字 / 僻体）
-    $('result').innerHTML = head(`正在查扩展字库 <span class="zi">${esc(ch)}</span>`, '');
-    return loadExt(ok => {
-      if (version !== queryVersion) return;
-      if (!ok) return renderExtError($('result'), () => searchSmart(raw));
-      const e = EXT && EXT.idx && EXT.idx[ch];
-      if (e != null) { renderExtHit(ch, e); return openExtDetail(ch); }
-      renderUnknown(ch);
-    });
+    return VariantFinder.lookup(q);
   }
   const key = stripTone(q);
   if (!key) return renderEmpty(q);
@@ -839,10 +874,12 @@ function geneScan(text){
   [...text].forEach((ch, i) => {
     if (!isHanOne(ch)) return;
     if (CMAP[ch] != null) return;                 // 规范字，无需提示
-    const hit = VI[ch];
+    const related = VariantCore.matches(VariantFinder.data, ch);
+    const target = VariantCore.uniqueTarget(VariantFinder.data, ch);
+    const hit = target && CMAP[target] != null ? [[CMAP[target], related.find(x => x.character === target).evidence.some(x => x.type === 'traditional') ? 6 : 5]] : null;
     const ex = EXT && EXT.idx ? EXT.idx[ch] : undefined;
-    rows.push(hit ? {ch, i, idx: hit[0][0], type: hit[0][1], all: hit}
-                  : {ch, i, idx: null, type: 0, ext: (ex != null ? ex : null)});
+    rows.push(hit ? {ch, i, idx: hit[0][0], type: hit[0][1], all: related}
+                  : {ch, i, idx: null, type: 0, all: related, ext: (ex != null ? ex : null)});
   });
   return rows;
 }
@@ -863,6 +900,15 @@ function renderGene(text){
     });
     return;
   }
+  if (!VariantFinder.data) {
+    $('result').innerHTML = head('家谱识别', '正在核对繁异体关系…');
+    VariantFinder.ensure().then(() => {
+      if (version === queryVersion) renderGene(text);
+    }).catch(() => {
+      if (version === queryVersion) renderExtError($('result'), () => renderGene(text));
+    });
+    return;
+  }
   const rows = geneScan(text);
   const mapped = rows.filter(r => r.idx != null);
   let html = head('家谱识别结果', `共 ${total} 字 · 待核 ${rows.length} 字 · 可映射 ${mapped.length} 字`);
@@ -874,12 +920,13 @@ function renderGene(text){
   rows.forEach(r => {
     const dst = r.idx != null ? CH[r.idx] : null;
     html += `<tr><td><span class="z" ${dst ? `data-i="${r.idx}"` : `data-v="${r.ch}"`}>${r.ch}</span></td>` +
-      `<td><span class="tagv">${r.type ? vtTxt(r.type) : '表外字'}</span></td>` +
+      `<td><span class="tagv">${r.type ? vtTxt(r.type) : r.all.length ? '对应待确认' : '表外字'}</span></td>` +
       `<td>${dst ? `<span class="arrow">→</span> <span class="z" data-i="${r.idx}">${dst.c}</span> ` +
         `<small style="color:var(--faint)">${esc(dst.p[0])}</small>`
-        : (r.ext != null ? `<span style="color:var(--ochre)">生僻 · ${esc(EXT.chars[r.ext].p[0])}</span>`
+        : (r.all.length ? `<small>${esc(r.all.map(m => m.character + (m.reference ? '（仅参考）' : '')).join(' / '))} · 待确认</small>`
+          : r.ext != null ? `<span style="color:var(--ochre)">生僻 · ${esc(EXT.chars[r.ext].p[0])}</span>`
                          : '<span style="color:var(--faint)">—</span>')}</td>` +
-      `<td style="font-size:11.5px">${r.type ? vtSrc(r.type)
+      `<td style="font-size:11.5px">${r.all.length ? esc(r.all.map(m => m.character + '：' + m.evidence.map(e => e.source).join(' / ')).join('；'))
         : (r.ext != null ? `Unicode Unihan 读音库 · ${zoneOf(r.ch)}` : '规范字表与异体字库均未收录')}</td></tr>`;
   });
   html += `</tbody></table>`;
@@ -1300,19 +1347,8 @@ function varSection(r){
 
 /* 表外异体字的独立详情：展示字形、来源、对应正字、部件结构 */
 function openVariantDetail(ch){
-  const hit = VI[ch];
-  if (!hit) {                       // 无对照：仅展示字形与部件
-    return showMini(ch, `<div class="var-empty">字库未收录「${ch}」，且无对应正字</div>`);
-  }
-  const dsts = hit.map(([i, t]) =>
-    `<div class="var-item" data-i="${i}"><span class="g">${CH[i].c}</span>` +
-    `<span class="m"><span class="t">${vtTxt(t)}</span><span class="r">${esc(CH[i].p[0])} · ${LV_TXT[CH[i].lv]}</span></span></div>`).join('');
-  const parts = (CZ[ch] || []).map(p => p.join(' + ')).join(' ／ ');
-  showMini(ch,
-    `<div class="hit-note">「<b>${ch}</b>」为表外${vtTxt(hit[0][1])}字` +
-    `<span style="color:var(--faint)"> · 依据 ${vtSrc(hit[0][1])}</span></div>` +
-    `<div class="var-block"><h3>对应正字<span>点击查看多体字形</span></h3><div class="var-list">${dsts}</div></div>` +
-    (parts ? `<div class="var-block"><h3>部件结构</h3><div class="comp-out"><span class="parts">${parts}</span></div></div>` : ''));
+  closeDetail();
+  return VariantFinder.lookup(ch);
 }
 /* 异体字详情共用弹层：大字形 + 自定义内容 */
 function showMini(ch, body){
@@ -1391,6 +1427,7 @@ document.addEventListener('keydown', e => {
 
 /* ============ 事件 ============ */
 const HINT = {
+  variant: '不知道读音也能查：按部首、笔画对照字形，或截图识别原字后反查规范字',
   smart: '拼音支持带调与不带调 · 输入汉字直接查看多种书体 · 繁体/异体字自动反查正字',
   stroke:'按总笔画数检字，可用部首进一步限定；不知读音、不明部首时最省事的检索方式',
   word:  '输入词语查拼音与简繁写法（CC-CEDICT 12 万条），点词中单字可看其多体字形',
@@ -1402,6 +1439,8 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
   t.classList.add('on');
   mode = t.dataset.mode;
+  VariantFinder.leave();
+  $('variantPanel').classList.toggle('show', mode === 'variant');
   const rad = $('radbar'), q = $('q');
   rad.classList.toggle('show', mode === 'radical');
   $('radTabs').classList.toggle('show', mode === 'radical');
@@ -1410,7 +1449,10 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
   $('strokePanel').classList.toggle('show', mode === 'stroke');
   $('hint').innerHTML = HINT[mode] || HINT.smart;
   $('hint').style.display = (mode === 'radical') ? 'none' : 'block';
-  if (mode === 'radical') {
+  if (mode === 'variant') {
+    q.disabled = false; q.value = ''; q.placeholder = '可粘贴一个原字；打不出来时使用下方部首或截图';
+    VariantFinder.enter();
+  } else if (mode === 'radical') {
     q.value = ''; q.placeholder = '输入部首直接定位（如 力 / 氵 / 艹），或点击下方部首'; q.disabled = false;
     setRadKind(radKind);          // 重建部首栏（沿用上次选择的归部体系）
     q.focus();
@@ -1432,7 +1474,8 @@ document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
 });
 function submitQuery(){
   const v = $('q').value;
-  if (mode === 'word') searchWord(v);
+  if (mode === 'variant') VariantFinder.lookup(v);
+  else if (mode === 'word') searchWord(v);
   else if (mode === 'comp') searchComp(v);
   else if (mode === 'radical') buildRadbar(v);
   else searchSmart(v);
@@ -1497,5 +1540,6 @@ renderHome();
 loadFontCss();
 setTimeout(() => fontStatCheck(2), 5000);
 </script>
+<script src="assets/variant-finder.js"></script>
 </body>
 </html>

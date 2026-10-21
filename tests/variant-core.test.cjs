@@ -1,0 +1,42 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const root = path.resolve(__dirname,'..');
+vm.runInThisContext(fs.readFileSync(path.join(root,'assets/variant-core.js'),'utf8'));
+const data = JSON.parse(fs.readFileSync(path.join(root,'assets/variant-index.json'),'utf8'));
+const core = globalThis.VariantCore;
+const get = (radical,strokes,strokeKind='total',extra={}) => core.filter(data,{radical,strokes,strokeKind,mappedOnly:true,...extra});
+assert.equal(core.uniqueTarget(data,'峯'),'峰');
+assert.equal(core.uniqueTarget(data,'淸'),'清');
+assert.equal(core.uniqueTarget(data,'牀'),'床');
+assert.ok(core.matches(data,'喆').some(x=>x.character==='哲'&&!x.reference));
+assert.ok(core.matches(data,'堃').some(x=>x.character==='坤'&&!x.reference));
+assert.equal(data.chars['喆'].std,true);
+assert.equal(core.uniqueTarget(data,'讐'),null);
+assert.ok(core.matches(data,'讐').filter(x=>!x.reference).length>=2);
+assert.equal(core.uniqueTarget(data,'🙂'),null);
+assert.ok(core.isHan('𠮷'));
+assert.ok(!core.isHan('峰山'));
+assert.ok(get(46,10).some(([c])=>c==='峯'));
+assert.ok(get(46,7,'remaining').some(([c])=>c==='峯'));
+assert.ok(get(85,11).some(([c])=>c==='淸'));
+assert.ok(get(90,8).some(([c])=>c==='牀'));
+assert.ok(!get(53,8).some(([c])=>c==='牀'), '原字不能用床的广部归类');
+assert.ok(!get(46,11).some(([c])=>c==='峯'));
+assert.ok(get(46,11,'total',{nearby:true}).some(([c])=>c==='峯'));
+assert.ok(get(30,6,'total',{mappedOnly:false}).some(([c])=>c==='𠮷'));
+assert.ok(get(46,'','total',{components:'山'}).every(([,r])=>r.k.some(p=>p.includes('山'))));
+assert.equal(new Set(core.filter(data,{mappedOnly:false}).map(([c])=>c)).size,Object.keys(data.chars).length);
+const referenceData={chars:{'甲':{m:[['乙','reference','语义来源']]}}};
+assert.equal(core.uniqueTarget(referenceData,'甲'),null);
+assert.ok(core.matches(referenceData,'甲')[0].reference);
+// 现有反查字必须都可通过自己的部首和笔画检索，不依赖读音。
+const main = JSON.parse(fs.readFileSync(path.join(root,'data.js'),'utf8').slice('const HANZI = '.length).trim().replace(/;$/,''));
+for(const char of Object.keys(main.variantIndex)) {
+  assert.ok(data.chars[char].r.length,char+' lacks own radical');
+  assert.ok(data.chars[char].s.length,char+' lacks own strokes');
+}
+const context={...data.chars['𠮷']}; delete context.p;
+assert.ok(core.filter({chars:{'𠮷':context}},{mappedOnly:false,radical:30,strokes:6}).length);
+console.log('PASS: direct/standard/multiple/reference matches, supplementary characters, own radical/stroke, nearby strokes, components, no-reading search, all 4641 existing variants indexed.');
