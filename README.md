@@ -56,21 +56,38 @@ python3 scripts/sync_offline_assets.py
 `/www/wwwroot/character.xm4021.com`：
 
 ```bash
-./scripts/deploy-artifact.sh --dry-run  # 本地校验、打包，不连接服务器
-./scripts/deploy-artifact.sh            # 正式上传并覆盖静态资源
+./scripts/deploy-artifact.sh --dry-run  # 仅本地校验，不连接服务器
+./scripts/deploy-artifact.sh --preview  # 连接服务器，预览需要同步的文件，不修改远端文件
+./scripts/deploy-artifact.sh            # 正式增量发布
 ```
 
-可从任意工作目录运行脚本。需要本地 Python 3、tar、SSH/SCP，以及服务器 SSH 访问权限；
-服务器需要 Bash、tar、find，并已通过宝塔或 Nginx 将域名指向上述网站根目录。
+可从任意工作目录运行脚本。需要本地 Python 3（资源校验）、rsync、SSH，以及服务器 SSH 访问权限；
+服务器需要 Bash、rsync、find，并已通过宝塔或 Nginx 将域名指向上述网站根目录。
 本项目无需 npm 构建、数据库或 PM2，不需要重启 Web 服务。
 
-打包后显示发布包大小（MiB 和字节数），上传时显示 SCP 原生百分比、速度和预计剩余时间；
-非终端输出环境使用 Python 3 伪终端保留进度。打包会排除 macOS 扩展属性和 ACL，
-避免 Linux 服务器解包时出现 `LIBARCHIVE.xattr.com.apple.quarantine` 等警告。
+默认不生成全量包，通过 rsync 比较文件内容，只传输新增或变化的文件。
+字体和笔顺资源没有变化时会跳过，有更新时自动同步，无需手动区分资源发布。
+每次比较会读取两端文件计算校验和，但不会因相同内容的文件修改时间不同而重复上传。
+资源同步成功后，最后同步 `index.html`；显示变化文件、文件上传进度和每阶段的传输统计。
+兼容 macOS 自带的旧版 rsync/openrsync，不传输 macOS 扩展属性或 ACL。
 
 脚本只上传页面、字库、字义/词语分片、字体和笔顺资源，不上传 `.env`、Git、原始 `data/` 或维护脚本。
-覆盖前会将服务器已有的对应资源备份至 `/www/wwwroot/character.xm4021.com.backups/`，
-保留其他服务器文件；备份不会自动清理。发布采用直接覆盖，建议避开访问高峰。
+增量发布只将被覆盖文件的旧版本备份至 `/www/wwwroot/character.xm4021.com.backups/<发布编号>/`，
+保留原目录结构；该目录是本次变更的旧文件集合，并非完整网站快照。
+未变化的资源不重复备份，无覆盖时备份目录为空。历史备份不会自动清理。
+不启用自动删除，服务器上其他文件、以及本地已移除的旧资源会继续保留。
+发布不保证整个网站原子切换，中断可能留下部分已更新的资源；可重新执行脚本补齐，建议避开访问高峰。
+
+服务器没有 rsync，或需要全量发布时，仍可使用原打包方式（两端需要 tar，本地需要 SCP）：
+
+```bash
+./scripts/deploy-artifact.sh --full --dry-run  # 仅本地校验、打包
+./scripts/deploy-artifact.sh --full            # 全量发布
+```
+
+全量模式显示包大小（MiB 和字节数）及 SCP 上传进度，非终端输出环境通过 Python 3 保留进度。
+打包时排除 macOS 扩展属性和 ACL，避免 Linux 解包时出现 `LIBARCHIVE.xattr.com.apple.quarantine` 等警告。
+全量模式会将已有的对应文件/目录整体备份为备份根目录下的 `.tar.gz` 文件。
 
 可通过环境变量覆盖连接参数、目标目录和备份目录，更多选项见 `./scripts/deploy-artifact.sh --help`。
 需要发布后检查公网访问时执行：
@@ -79,4 +96,4 @@ python3 scripts/sync_offline_assets.py
 HEALTH_URL=https://character.xm4021.com/ ./scripts/deploy-artifact.sh
 ```
 
-HTTP 检查失败会返回非零状态，但不会自动回滚已上传的文件。
+HTTP 检查失败会返回非零状态，但不会自动回滚已上传的文件；预览模式不执行 HTTP 检查。

@@ -9,12 +9,17 @@ BACKUP_PATH="${BACKUP_PATH:-${DEPLOY_PATH}.backups}"
 HEALTH_URL="${HEALTH_URL:-}"
 RUN_CHECK="${RUN_CHECK:-1}"
 DRY_RUN=0
+FULL=0
+PREVIEW=0
 
 usage() {
   cat <<'EOF'
 Usage:
-  ./scripts/deploy-artifact.sh             校验、打包并发布静态网站
-  ./scripts/deploy-artifact.sh --dry-run   仅校验、打包，不连接服务器
+  ./scripts/deploy-artifact.sh             校验并增量发布（默认）
+  ./scripts/deploy-artifact.sh --dry-run   仅本地校验，不连接服务器
+  ./scripts/deploy-artifact.sh --preview   连接服务器预览增量变化，不修改远端文件
+  ./scripts/deploy-artifact.sh --full      全量打包、上传并发布
+  ./scripts/deploy-artifact.sh --full --dry-run  仅校验、打包，不连接服务器
 
 Environment:
   DEPLOY_USER   SSH 用户，默认 root
@@ -27,10 +32,12 @@ Environment:
 
 Notes:
   使用 SSH 密钥或交互式认证，不在脚本中保存密码。
-  打包后显示包大小；上传时显示 SCP 百分比、速度和预计剩余时间。
-  非终端输出环境通过 Python 3 保留 SCP 进度显示。
+  增量模式需要两端安装 rsync，按内容校验跳过未变化的文件。
+  显示变化文件、上传进度和传输统计；资源同步成功后才更新首页。
+  全量模式显示包大小和 SCP 进度；非终端输出需要 Python 3。
   仅上传运行资源，不上传 .env、Git、原始 data/ 或维护脚本。
-  覆盖前备份已有的同名文件/目录，不删除服务器上其他文件。
+  增量模式只备份被覆盖的文件；全量模式备份已有的同名文件/目录。
+  不自动删除服务器上其他文件，也不自动清理历史备份。
   无需 Node.js、数据库、PM2 或重启 Web 服务。
 EOF
 }
@@ -38,13 +45,16 @@ EOF
 log() { printf '[deploy] %s\n' "$*"; }
 fail() { printf '[deploy] ERROR: %s\n' "$*" >&2; exit 1; }
 
-case "${1:-}" in
-  '') ;;
-  --dry-run) DRY_RUN=1 ;;
-  -h|--help) usage; exit 0 ;;
-  *) usage; fail "未知参数：$1" ;;
-esac
-[[ $# -le 1 ]] || fail "参数过多。"
+for argument in "$@"; do
+  case "$argument" in
+    --dry-run) DRY_RUN=1 ;;
+    --full) FULL=1 ;;
+    --preview) PREVIEW=1 ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage; fail "未知参数：$argument" ;;
+  esac
+done
+[[ "$PREVIEW" == 0 || ( "$FULL" == 0 && "$DRY_RUN" == 0 ) ]] || fail "--preview 不能与 --full 或 --dry-run 一起使用。"
 
 # 限制远端参数字符，避免 SSH 的远端 shell 将路径解释为命令。
 [[ "$DEPLOY_USER" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_-]*$ ]] || fail "无效的 SSH 用户。"
@@ -60,25 +70,32 @@ done
 
 PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
-for tool in tar mktemp; do
-  command -v "$tool" >/dev/null 2>&1 || fail "缺少命令：$tool"
-done
+command -v mktemp >/dev/null 2>&1 || fail "缺少命令：mktemp"
+if [[ "$FULL" == 1 ]]; then
+  command -v tar >/dev/null 2>&1 || fail "缺少命令：tar"
+fi
 if [[ "$DRY_RUN" == 0 ]]; then
-  for tool in ssh scp; do
-    command -v "$tool" >/dev/null 2>&1 || fail "缺少命令：$tool"
-  done
-  if [[ ! -t 1 || ! -t 2 ]]; then
-    command -v python3 >/dev/null 2>&1 || fail "非终端环境显示上传进度需要 Python 3。"
+  command -v ssh >/dev/null 2>&1 || fail "缺少命令：ssh"
+  if [[ "$FULL" == 1 ]]; then
+    command -v scp >/dev/null 2>&1 || fail "缺少命令：scp"
+    if [[ ! -t 1 || ! -t 2 ]]; then
+      command -v python3 >/dev/null 2>&1 || fail "非终端环境显示上传进度需要 Python 3。"
+    fi
+  else
+    command -v rsync >/dev/null 2>&1 || fail "增量发布需要本地安装 rsync。"
   fi
-  if [[ -n "$HEALTH_URL" ]]; then
+  if [[ "$PREVIEW" == 0 && -n "$HEALTH_URL" ]]; then
     command -v curl >/dev/null 2>&1 || fail "缺少命令：curl"
   fi
 fi
 
-FILES=(data.js data_ext.js hwset.js defs words fonts assets index.html)
+RESOURCES=(data.js data_ext.js hwset.js defs words fonts assets)
+FILES=("${RESOURCES[@]}" index.html)
 for file in "${FILES[@]}"; do
   [[ -e "$file" ]] || fail "运行资源缺失：$file"
 done
+[[ -s index.html ]] || fail "首页 index.html 为空。"
+[[ -z "$(find "${FILES[@]}" -type l -print -quit)" ]] || fail "本地运行资源包含符号链接，请先人工检查。"
 if [[ "$RUN_CHECK" == 1 ]]; then
   command -v python3 >/dev/null 2>&1 || fail "资源校验需要 Python 3。"
   log "校验离线资源"
@@ -90,6 +107,73 @@ trap 'rm -f -- "$ARTIFACT_PATH"' EXIT
 RELEASE_ID="${ARTIFACT_PATH##*/}"
 REMOTE_ARTIFACT="/tmp/${RELEASE_ID}.tar.gz"
 REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
+
+check_health() {
+  if [[ -n "$HEALTH_URL" ]]; then
+    log "检查 ${HEALTH_URL}"
+    curl --fail --show-error --silent --location --connect-timeout 10 --max-time 30 "$HEALTH_URL" >/dev/null
+  fi
+}
+
+if [[ "$FULL" == 0 ]]; then
+  if [[ "$DRY_RUN" == 1 ]]; then
+    log "本地校验通过；默认使用 rsync 增量发布，不生成全量包。"
+    log "未连接服务器；使用 --preview 可查看实际需要同步的文件。"
+    exit 0
+  fi
+
+  log "检查远端 rsync 和目标资源路径"
+  ssh -p "$DEPLOY_PORT" -o ConnectTimeout=15 "$REMOTE" \
+    "bash -s -- '$DEPLOY_PATH' '$BACKUP_PATH' '$RELEASE_ID' '$PREVIEW'" <<'REMOTE_PREFLIGHT'
+set -Eeuo pipefail
+DEPLOY_PATH="$1"
+BACKUP_PATH="$2"
+RELEASE_ID="$3"
+PREVIEW="$4"
+command -v rsync >/dev/null 2>&1 || {
+  printf '[remote] ERROR: 增量发布需要服务器安装 rsync；也可使用 --full 全量发布。\n' >&2
+  exit 1
+}
+FILES=(data.js data_ext.js hwset.js defs words fonts assets index.html)
+for file in "${FILES[@]}"; do
+  if [[ -L "${DEPLOY_PATH}/${file}" ]] ||
+    { [[ -d "${DEPLOY_PATH}/${file}" ]] && [[ -n "$(find "${DEPLOY_PATH}/${file}" -type l -print -quit)" ]]; }; then
+    printf '[remote] ERROR: 目标资源包含符号链接，请先人工检查：%s\n' "$file" >&2
+    exit 1
+  fi
+done
+if [[ "$PREVIEW" == 0 ]]; then
+  mkdir -p -- "$DEPLOY_PATH" "${BACKUP_PATH}/${RELEASE_ID}"
+fi
+REMOTE_PREFLIGHT
+
+  # 使用旧版 rsync/openrsync 也支持的选项，不传输扩展属性或 ACL。
+  RSYNC_ARGS=(--recursive --times --omit-dir-times --checksum
+    --itemize-changes --human-readable --progress --stats
+    --backup "--backup-dir=${BACKUP_PATH}/${RELEASE_ID}"
+    --exclude='.DS_Store' --exclude='._*' --exclude='.env' --exclude='.env.*' --exclude='.git'
+    -e "ssh -p ${DEPLOY_PORT} -o ConnectTimeout=15")
+  if [[ "$PREVIEW" == 1 ]]; then
+    RSYNC_ARGS+=(--dry-run)
+    log "预览增量变化（不修改远端文件）"
+  else
+    log "按内容校验并增量上传到 ${REMOTE}:${DEPLOY_PATH}（端口 ${DEPLOY_PORT}）"
+  fi
+
+  log "同步字库、字体和笔顺等资源"
+  COPYFILE_DISABLE=1 rsync "${RSYNC_ARGS[@]}" "${RESOURCES[@]}" "${REMOTE}:${DEPLOY_PATH}/"
+  log "最后同步首页"
+  COPYFILE_DISABLE=1 rsync "${RSYNC_ARGS[@]}" index.html "${REMOTE}:${DEPLOY_PATH}/"
+
+  if [[ "$PREVIEW" == 1 ]]; then
+    log "预览完成，未发布。"
+    exit 0
+  fi
+  log "被覆盖文件的旧版本保存在 ${BACKUP_PATH}/${RELEASE_ID}/（无覆盖时目录为空）。"
+  check_health
+  log "增量发布完成"
+  exit 0
+fi
 
 log "打包静态资源"
 # COPYFILE_DISABLE 只处理 AppleDouble，仍需显式禁用 pax 扩展属性。
@@ -161,8 +245,5 @@ tar -xzf "$REMOTE_ARTIFACT" -C "$DEPLOY_PATH" --no-same-owner --no-same-permissi
 printf '[remote] 静态资源已发布到 %s\n' "$DEPLOY_PATH"
 REMOTE_SCRIPT
 
-if [[ -n "$HEALTH_URL" ]]; then
-  log "检查 ${HEALTH_URL}"
-  curl --fail --show-error --silent --location --connect-timeout 10 --max-time 30 "$HEALTH_URL" >/dev/null
-fi
+check_health
 log "发布完成"
