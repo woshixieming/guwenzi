@@ -49,3 +49,34 @@ python3 scripts/sync_offline_assets.py
 ```
 
 第三方版本、来源和许可证见 [离线资源说明](assets/README.md)。
+
+## 发布到服务器
+
+默认通过 SSH 发布到 `root@150.158.45.203:520`，网站根目录为
+`/www/wwwroot/character.xm4021.com`：
+
+```bash
+./scripts/deploy-artifact.sh --dry-run  # 本地校验、打包，不连接服务器
+./scripts/deploy-artifact.sh            # 正式上传并覆盖静态资源
+```
+
+可从任意工作目录运行脚本。需要本地 Python 3、tar、SSH/SCP，以及服务器 SSH 访问权限；
+服务器需要 Bash、tar、find，并已通过宝塔或 Nginx 将域名指向上述网站根目录。
+本项目无需 npm 构建、数据库或 PM2，不需要重启 Web 服务。
+
+打包后显示发布包大小（MiB 和字节数），上传时显示 SCP 原生百分比、速度和预计剩余时间；
+非终端输出环境使用 Python 3 伪终端保留进度。打包会排除 macOS 扩展属性和 ACL，
+避免 Linux 服务器解包时出现 `LIBARCHIVE.xattr.com.apple.quarantine` 等警告。
+
+脚本只上传页面、字库、字义/词语分片、字体和笔顺资源，不上传 `.env`、Git、原始 `data/` 或维护脚本。
+覆盖前会将服务器已有的对应资源备份至 `/www/wwwroot/character.xm4021.com.backups/`，
+保留其他服务器文件；备份不会自动清理。发布采用直接覆盖，建议避开访问高峰。
+
+可通过环境变量覆盖连接参数、目标目录和备份目录，更多选项见 `./scripts/deploy-artifact.sh --help`。
+需要发布后检查公网访问时执行：
+
+```bash
+HEALTH_URL=https://character.xm4021.com/ ./scripts/deploy-artifact.sh
+```
+
+HTTP 检查失败会返回非零状态，但不会自动回滚已上传的文件。
