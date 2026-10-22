@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import threading
+import tempfile
 import unittest
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -115,6 +116,21 @@ class OCRTests(unittest.TestCase):
         with urlopen(self.base+'/assets/variant-core.js') as response:self.assertEqual(response.status,200)
     def test_config_cannot_live_in_webroot(self):
         with self.assertRaises(ValueError):ocr.load_config(ROOT/'server/ocr-config.example.json')
+    def test_remote_http_requires_explicit_boolean_opt_in(self):
+        with tempfile.TemporaryDirectory(prefix='ocr-config-test-') as temporary:
+            path=Path(temporary)/'config.json'
+            config={'enabled':True,'base_url':'http://198.51.100.1/v1','api_key':'test-fixture','model':'vision-fixture'}
+            path.write_text(json.dumps(config))
+            with self.assertRaisesRegex(ValueError,'allow_remote_http'):ocr.load_config(path)
+            config['allow_remote_http']=True
+            path.write_text(json.dumps(config))
+            self.assertTrue(ocr.load_config(path)['allow_remote_http'])
+            config['allow_remote_http']='true'
+            path.write_text(json.dumps(config))
+            with self.assertRaisesRegex(ValueError,'布尔值'):ocr.load_config(path)
+            config.update(base_url='ftp://198.51.100.1/v1',allow_remote_http=True)
+            path.write_text(json.dumps(config))
+            with self.assertRaises(ValueError):ocr.load_config(path)
     def test_candidate_dedup_and_supplementary_codepoint(self):
         result=ocr.parse_candidates('{"candidates":[{"character":"𠮷"},{"character":"𠮷"}]}')
         self.assertEqual(len(result['candidates']),1)

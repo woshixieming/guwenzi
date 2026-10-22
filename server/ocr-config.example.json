@@ -1,5 +1,6 @@
 {
   "enabled": false,
+  "allow_remote_http": false,
   "base_url": "https://api.openai.com/v1",
   "api_key": "",
   "model": "",

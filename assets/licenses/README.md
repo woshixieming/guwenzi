@@ -17,6 +17,9 @@
 `assets/variant-index.json` 从本地 Unicode Unihan 和现有主字库、扩展字库生成，新增原字部首、总笔画、部外笔画及直接对应关系，
 不按是否有读音筛除字符。每条关系保留来源，语义关系标为参考；沿用以上各来源的数据许可。
 
+`assets/radical-strokes.js` 整理现代部首自身的笔画，使用现有主字库、《汉语拼音辞典》和 Unihan；
+符号区偏旁按 [Unicode 18.0 等价汉字映射](https://www.unicode.org/Public/18.0.0/ucd/EquivalentUnifiedIdeograph.txt) 补齐。
+
 ## 其他资源
 
 - [Hanzi Writer](../hanzi-writer/README.md) 采用 [MIT](../hanzi-writer/LICENSE)。

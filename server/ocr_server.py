@@ -104,7 +104,8 @@ def recognize(image, config):
 
 def load_config(path=None):
     config = {'enabled': False, 'base_url': '', 'api_key': '', 'model': '',
-              'timeout_seconds': 45, 'requests_per_minute': 6, 'allowed_origins': []}
+              'timeout_seconds': 45, 'requests_per_minute': 6, 'allowed_origins': [],
+              'allow_remote_http': False}
     if path:
         target = Path(path).resolve()
         if target.is_relative_to(ROOT):
@@ -115,14 +116,17 @@ def load_config(path=None):
         config.update(values)
     if not isinstance(config['enabled'], bool):
         raise ValueError('enabled 必须为布尔值。')
+    if not isinstance(config['allow_remote_http'], bool):
+        raise ValueError('allow_remote_http 必须为布尔值。')
     if not all(isinstance(config[k], str) for k in ('base_url', 'api_key', 'model')):
         raise ValueError('连接配置必须为字符串。')
     endpoint = urlsplit(config['base_url'])
     if config['enabled'] and (not endpoint.hostname or endpoint.username or endpoint.password
                              or endpoint.query or endpoint.fragment
                              or not (endpoint.scheme == 'https' or
-                                     (endpoint.scheme == 'http' and endpoint.hostname in ('127.0.0.1', 'localhost', '::1')))):
-        raise ValueError('base_url 必须为 HTTPS 地址（本机测试允许 HTTP）。')
+                                     (endpoint.scheme == 'http' and
+                                      (endpoint.hostname in ('127.0.0.1', 'localhost', '::1') or config['allow_remote_http'])))):
+        raise ValueError('base_url 默认仅允许 HTTPS 或本机 HTTP；使用远端 HTTP 需显式设置 allow_remote_http=true。')
     for key, low, high in [('timeout_seconds', 1, 60), ('requests_per_minute', 1, 120)]:
         if type(config[key]) is not int or not low <= config[key] <= high:
             raise ValueError('超时或请求频率设置无效。')

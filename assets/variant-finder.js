@@ -3,6 +3,7 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const core = window.VariantCore;
+  const OCR_AVAILABLE = false; // 截图找字暂未开放，保留接入代码供后续恢复。
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let data = null, loading = null, page = 0, current = [], query = 0;
   let submode = 'radical', ocrReady = false, ocrAbort = null, statusVersion = 0;
@@ -54,7 +55,7 @@
         `<div class="py">${escape(hint)}</div><div class="rd">${r.s.length ? r.s.join('/') + '画' : '笔画未知'} · U+${ch.codePointAt(0).toString(16).toUpperCase()}</div></button>`;
     }).join('');
     $('result').innerHTML = `<div class="result-head"><h2>按字形找异体字</h2><span>${current.length} 字 · 第 ${page + 1}/${pages} 页</span></div>` +
-      (cards ? `<div class="grid">${cards}</div>` : '<div class="empty">没有符合条件的字。可取消笔画限定、改选相邻部首，或尝试截图识字。</div>') +
+      (cards ? `<div class="grid">${cards}</div>` : '<div class="empty">没有符合条件的字。可取消笔画限定、改选相邻部首，或按可辨认的部件查找。</div>') +
       `<div class="vf-paging"><button type="button" class="copy-btn" id="vfPrevious" ${page === 0 ? 'disabled' : ''}>上一页</button><span>${page + 1} / ${pages}</span>` +
       `<button type="button" class="copy-btn" id="vfNext" ${page + 1 >= pages ? 'disabled' : ''}>下一页</button></div>`;
     $('vfPrevious').onclick = () => { page--; paginate(); };
@@ -84,7 +85,7 @@
     const version = ++query;
     const chs = [...raw.trim()];
     if (chs.length !== 1 || !core.isHan(chs[0])) {
-      $('result').innerHTML = '<div class="vf-result">请粘贴一个汉字；多字文本请使用家谱识别。</div>'; return;
+      $('result').innerHTML = '<div class="vf-result">请粘贴一个汉字；不知道原字时，可按部首、笔画或部件查找。</div>'; return;
     }
     const ch = chs[0], expectedMode = active();
     $('result').innerHTML = '<div class="vf-result">正在查找对应关系…</div>';
@@ -119,6 +120,7 @@
   }
   async function checkStatus(){
     const version = ++statusVersion;
+    if (!OCR_AVAILABLE) { ocrReady = false; refreshRecognize(); return; }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 6000);
     $('vfOcrStatus').textContent = '正在检查截图识字服务…';
@@ -133,7 +135,7 @@
       if (version === statusVersion) $('vfOcrStatus').textContent = '截图识字服务暂不可用，请使用部首查字，或稍后重新检查。';
     } finally { clearTimeout(timer); if (version === statusVersion) refreshRecognize(); }
   }
-  function refreshRecognize(){ $('vfRecognize').disabled = !ocrReady || !crop || !!ocrAbort; }
+  function refreshRecognize(){ $('vfRecognize').disabled = !OCR_AVAILABLE || !ocrReady || !crop || !!ocrAbort; }
   function cancelOcr(){ if (ocrAbort) ocrAbort.abort(); ocrAbort = null; refreshRecognize(); }
   function clearCandidates(){
     $('vfOcrCandidates').innerHTML = ''; $('vfOcrMessage').textContent = '';
@@ -170,6 +172,7 @@
     paint(); cropChanged();
   }
   async function chooseImage(file){
+    if (!OCR_AVAILABLE) return;
     const version = ++imageVersion;
     cancelOcr(); clearCandidates();
     image = null; crop = ''; selection = null; dragStart = null; refreshRecognize();
@@ -223,7 +226,7 @@
     paint(); cropChanged();
   };
   async function recognize(){
-    if (!crop || !ocrReady || ocrAbort) return;
+    if (!OCR_AVAILABLE || !crop || !ocrReady || ocrAbort) return;
     if (crop.length > 5.5*1024*1024) { $('vfOcrMessage').textContent = '选区图片过大，请缩小选区。'; return; }
     const controller = new AbortController(); ocrAbort = controller; refreshRecognize(); clearCandidates();
     const snapshot = crop;
@@ -246,11 +249,14 @@
     }
   }
   function setSubmode(value){
-    ++query; submode = value; cancelOcr();
-    $('vfRadicalMode').hidden = value !== 'radical'; $('vfOcrMode').hidden = value !== 'ocr';
+    ++query; ++statusVersion; submode = value; cancelOcr();
+    $('vfRadicalMode').hidden = value !== 'radical';
+    $('vfOcrMode').hidden = value !== 'ocr' || !OCR_AVAILABLE;
+    $('vfOcrUnavailable').hidden = value !== 'ocr' || OCR_AVAILABLE;
     document.querySelectorAll('[data-vf-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.vfMode === value)));
     if (value === 'ocr') {
-      $('result').innerHTML = ''; status('上传截图后框选一个字，再确认识别候选。'); checkStatus();
+      clearCandidates(); status('');
+      if (OCR_AVAILABLE) { status('上传截图后框选一个字，再确认识别候选。'); checkStatus(); }
     } else { clearCandidates(); filter(); }
   }
   async function enter(){
@@ -276,9 +282,10 @@
   for (const id of ['vfRadical','vfStrokeKind','vfNearby','vfMapped']) $(id).onchange = () => { if(data) radicalControls(); filter(); };
   for (const id of ['vfParts','vfStrokes']) $(id).onkeydown = e => { if(e.key==='Enter') filter(); };
   document.querySelectorAll('[data-vf-mode]').forEach(b => b.onclick = () => setSubmode(b.dataset.vfMode));
+  $('vfBackToRadical').onclick = () => setSubmode('radical');
   $('vfFile').onchange = () => { const file = $('vfFile').files[0]; if(file) chooseImage(file); $('vfFile').value=''; };
   document.addEventListener('paste', event => {
-    if (active() !== 'variant' || submode !== 'ocr') return;
+    if (!OCR_AVAILABLE || active() !== 'variant' || submode !== 'ocr') return;
     const item = [...(event.clipboardData?.items || [])].find(x=>x.type.startsWith('image/'));
     if (item) { event.preventDefault(); chooseImage(item.getAsFile()); }
   });

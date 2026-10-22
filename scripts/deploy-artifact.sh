@@ -137,8 +137,8 @@ import ast, json
 from pathlib import Path
 ast.parse(Path('server/ocr_server.py').read_text(encoding='utf-8'))
 config = json.loads(Path('server/ocr-config.example.json').read_text(encoding='utf-8'))
-if config.get('enabled') is not False or config.get('api_key') or config.get('model'):
-    raise SystemExit('发布模板必须关闭 OCR 且不含密钥或模型；请在服务器私有配置中填写。')
+if config.get('enabled') is not False or config.get('allow_remote_http', False) is not False or config.get('api_key') or config.get('model'):
+    raise SystemExit('发布模板必须关闭 OCR 和远端 HTTP，且不含密钥或模型；请在服务器私有配置中填写。')
 PY_CHECK
 fi
 

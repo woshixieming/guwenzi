@@ -106,6 +106,16 @@ HTTP 检查失败会返回非零状态，但不会自动回滚已上传的文件
 
 ## 异体字查找
 
+PC 和手机端统一提供智能查询、异体字查找、部首查找、笔画检字、部件拆字五个入口，已移除词语和家谱识别入口。
+部首查找中的现代规范部首按自身笔画分组；元数据 `assets/radical-strokes.js` 由以下命令生成或校验：
+
+```bash
+python3 scripts/build_radical_strokes.py
+python3 scripts/build_radical_strokes.py --check
+```
+
+优先沿用主字库和现有字典的现代笔画记录，再用 Unihan 及 Unicode 等价偏旁补齐；例如氵三画、阝二画，不沿用水或阜的笔画。
+
 “异体字查找”支持按原字部首、总笔画或部外笔画筛选，并提供可选部件筛选、相邻笔画范围和分页。
 默认只列出有对应或参考关系的字；取消勾选后可查阅更大的 Unihan 字库，包含没有读音或没有对应规范字的字符。
 字形由本地字体及系统字体显示，部分扩展字可能缺字；结果保留字符复制和 Unicode 编码，不能把方框当作字形依据。
@@ -124,6 +134,9 @@ python3 scripts/build_variant_index.py
 
 ## 截图识字与 OpenAI 兼容接口
 
+当前网页的 PC 和手机截图找字均显示“暂未开放”，不显示上传控件、不发起 OCR 请求。
+`assets/variant-finder.js` 中的 `OCR_AVAILABLE` 为统一开关，默认 false；以下说明保留给后续恢复识别模块时使用。
+
 选图、粘贴截图、拖动框选和选区滑块均在浏览器内完成。只有点击“识别选区”才发送选区图片，
 不会自动上传整页图像，不在浏览器或服务端磁盘保存图片。模型候选必须经用户点击确认，再进入本地规范字反查；
 模型不负责确定规范字对应关系。换图、调整选区、取消或切换页面入口会忽略旧识别结果。
@@ -141,6 +154,7 @@ python3 server/ocr_server.py --port 8000
 | 字段 | 用途 |
 | --- | --- |
 | `enabled` | 默认 false；准备启用时设为 true |
+| `allow_remote_http` | 默认 false；只有明确接受密钥与图片以明文传输时，才在服务器私有配置中设为 true，以接入远端 HTTP API；不关闭 HTTPS 证书校验 |
 | `base_url` | OpenAI 兼容 API 根地址，包含版本前缀，例如 `https://api.openai.com/v1`；脚本追加 `/chat/completions` |
 | `api_key` | 服务端 API 密钥，留空则不能发起识别 |
 | `model` | 支持图像输入的模型标识，留空则不能发起识别 |
@@ -245,6 +259,7 @@ location = /api/ocr/status {
 
 ```bash
 node tests/variant-core.test.cjs
+node tests/radical-strokes.test.cjs
 python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/build_variant_index.py --check
 python3 scripts/sync_offline_assets.py --check

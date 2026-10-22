@@ -33,7 +33,20 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .vf-ocr-candidates button{padding:10px 15px;max-width:220px;text-align:left;overflow-wrap:anywhere;background:var(--card);border:1px solid var(--line);border-radius:10px;color:var(--ink)}
 .vf-ocr-candidates b{display:block;font:40px 'Source Han Serif SC VF',serif}
 .vf-ocr-candidates small{font-size:12px}
+.vf-unavailable{padding:20px 12px;text-align:center;border:1px dashed var(--line);border-radius:10px;background:rgba(156,107,63,.04)}
+.vf-unavailable strong{font-size:15px;font-weight:500;color:var(--ochre)}
+.vf-unavailable p{margin:7px 0 12px;color:var(--ink2);font-size:12px;line-height:1.7}
+.variant-panel [data-vf-mode]{min-height:42px}
+[data-vf-mode="ocr"]::after{content:'暂未开放';display:block;font-size:10px;opacity:.75}
+[data-vf-mode][aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--card)}
 @media(max-width:600px){
   .tab{padding:5px 11px}.search-card{padding:14px 12px}.search-row{gap:6px}.search-row .btn{padding:0 13px}
   .vf-crop{grid-template-columns:minmax(0,1fr)}.vf-tools{gap:8px}.vf-result .original{font-size:48px}
+  .variant-panel>.vf-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  #vfRadicalMode>.vf-tools{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  #vfRadicalMode>.vf-tools label{min-width:0;flex-direction:column;align-items:stretch;gap:4px}
+  #vfRadicalMode>.vf-tools label input:not([type="checkbox"]),#vfRadicalMode>.vf-tools select{width:100%;max-width:none;min-width:0}
+  #vfRadicalMode>.vf-tools label:nth-of-type(4),#vfRadicalMode>.vf-tools label:nth-of-type(5){flex-direction:row;align-items:center}
+  #vfRadicalMode>.vf-tools label:nth-of-type(5),#vfRadicalMode>.vf-tools label:nth-of-type(6){grid-column:1 / -1}
+  #vfRadicalMode>.vf-tools .copy-btn{min-height:36px}
 }
