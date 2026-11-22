@@ -21,6 +21,23 @@
 下载包的完整性校验及本地文件哈希记录在 `assets/offline-manifest.json`；
 用 `python3 scripts/sync_offline_assets.py --check` 可离线校验。
 
+## 查字补充字体
+
+`lookup/` 保存查字用的补充字形。浏览器通过 `unicode-range` 按实际显示的码位加载对应 WOFF2 文件。
+思源宋体 SC 和补充字体在当前 103,000 个索引条目中覆盖 102,999 个。剩余的 U+E820 属于私用区，页面保留编码、复制和已有的对应关系。
+
+- 补充字体主要取自 Koichi Kamichi 与 GlyphWiki 贡献者发布的 [Jigmo（字雲）2025-09-12](https://kamichikoichi.github.io/jigmo/)，采用 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/)。
+- 扩展 D 的 U+2B81E 补入 GlyphWiki 的 G 字形，来源为 [u2b81e-g.svg](https://glyphwiki.org/glyph/u2b81e-g.svg)，字形按 [文件授权说明](https://commons.wikimedia.org/wiki/File:U2b81e-g.svg) 进入公有领域。
+- [遍黑体](https://github.com/Fitzgerald-Porthmouth-Koenigsegg/Plangothic_Project) 提供简体中文地区字形及扩展区字形。[CNS 11643 全字库](https://data.gov.tw/dataset/5961) 提供正楷、正宋和姓名用字资料。
+
+更新检索索引后，可用 FontTools（含 WOFF2 支持）重新生成字形。以下命令从项目根目录运行，`JIGMO_DIR` 指向上游三个 TTF 的解包目录，`GLYPHWIKI_SVG` 指向已下载的 `u2b81e-g.svg`。
+
+```bash
+python3 scripts/build_lookup_fonts.py "$JIGMO_DIR" fonts/lookup --glyphwiki-svg "$GLYPHWIKI_SVG"
+```
+
+若分片边界变化，清理 `fonts/lookup/` 中新版 `font.css` 已不引用的旧文件。生成过程只用于维护，运行网站时直接使用本地资源。
+
 ## 甲骨文
 
 - 页面文件：`jiaguwen.woff2`，CSS 字体名 `JiaGuWen`。

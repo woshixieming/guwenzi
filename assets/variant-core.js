@@ -5,7 +5,7 @@
     if (typeof c !== 'string' || [...c].length !== 1) return false;
     const n = c.codePointAt(0);
     return (n >= 0x3400 && n <= 0x4dbf) || (n >= 0x4e00 && n <= 0x9fff) ||
-      (n >= 0xf900 && n <= 0xfaff) || (n >= 0x20000 && n <= 0x323af);
+      (n >= 0xf900 && n <= 0xfaff) || (n >= 0x20000 && n <= 0x33479);
   }
   function matches(data, ch){
     const grouped = new Map();

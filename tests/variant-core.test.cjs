@@ -17,6 +17,8 @@ assert.equal(core.uniqueTarget(data,'讐'),null);
 assert.ok(core.matches(data,'讐').filter(x=>!x.reference).length>=2);
 assert.equal(core.uniqueTarget(data,'🙂'),null);
 assert.ok(core.isHan('𠮷'));
+assert.ok(core.isHan('\u{323B0}')); // 扩展 J 可从列表和直接查询进入详情。
+assert.ok(!core.isHan('\uE820')); // 私用区由索引确认，不属于统一表意文字范围。
 assert.ok(!core.isHan('峰山'));
 assert.ok(get(46,10).some(([c])=>c==='峯'));
 assert.ok(get(46,7,'remaining').some(([c])=>c==='峯'));

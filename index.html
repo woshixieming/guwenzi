@@ -7,7 +7,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23b5493a'/%3E%3Ctext x='32' y='46' font-size='40' text-anchor='middle' fill='%23fffdf8' font-family='Kaiti SC,serif'%3E书%3C/text%3E%3C/svg%3E">
 <meta name="description" content="汉字书体查询：楷体、繁体、隶书、行书、草书、篆书多书体对照，支持拼音查询与部首检索，收录通用规范汉字表 8105 字">
 <!-- 本地书法字体 CSS 动态装入，字形分片按需读取。 -->
-<link rel="stylesheet" href="assets/variant-finder.css">
+<link rel="stylesheet" href="assets/variant-finder.css?v=4">
+<link rel="stylesheet" href="fonts/lookup/font.css">
 <style>
 :root{
   --paper:#f6f2e9; --card:#fffdf8; --line:#e5ddcc; --ink:#2d2a24; --ink2:#6f6858;
@@ -45,6 +46,7 @@ header p{color:var(--ink2);margin-top:10px;font-size:13px;letter-spacing:.08em}
 .tab.on{background:var(--ink);color:#f6f2e9;border-color:var(--ink)}
 .search-row{display:flex;gap:10px}
 #q{flex:1;border:1px solid var(--line);border-radius:10px;background:#fffefb;padding:11px 14px;
+  font-family:-apple-system,BlinkMacSystemFont,'Jigmo Lookup',sans-serif;
   font-size:15px;outline:none;color:var(--ink);transition:border .15s}
 #q:focus{border-color:var(--gold)}
 #q::placeholder{color:var(--faint)}
@@ -153,7 +155,7 @@ header p{color:var(--ink2);margin-top:10px;font-size:13px;letter-spacing:.08em}
 .fbadge.ok{background:#6b8f6b;opacity:.0;transition:opacity .4s}
 /* 未收录字形：展示现代字形作灰底参照 */
 .sty.nostroke{background:repeating-linear-gradient(45deg,#fffdf8,#fffdf8 8px,#faf6ec 8px,#faf6ec 16px)}
-.sty.nostroke .glyph.muted{color:#c8c0ad;font-family:'Songti SC',serif}
+.sty.nostroke .glyph.muted{color:#c8c0ad;font-family:var(--lookup-font)}
 .sty.nostroke .tag{background:var(--faint)}
 .m-info .lv.warn{color:var(--ochre);border-color:var(--gold)}
 .spin{display:inline-block;width:8px;height:8px;margin-right:4px;border:1.5px solid #fff;
@@ -380,7 +382,7 @@ footer a:hover{text-decoration:underline}
           <label>笔画方式<select id="vfStrokeKind"><option value="total">总笔画</option><option value="remaining">部外笔画</option></select></label>
           <label>笔画数<input id="vfStrokes" type="number" min="0" max="100" placeholder="不限"></label>
           <label><input type="checkbox" id="vfNearby">包含相邻笔画 ±1</label>
-          <label><input type="checkbox" id="vfMapped" checked>仅显示有对应或参考关系的字</label>
+          <label><input type="checkbox" id="vfMapped">仅显示有对应或参考关系的字</label>
           <label>可辨部件<input id="vfParts" type="text" maxlength="12" placeholder="可选，如：木"></label>
           <button type="button" class="btn" id="vfFilter">筛选</button>
           <button type="button" class="copy-btn" id="vfReset">重置</button>
@@ -446,7 +448,7 @@ footer a:hover{text-decoration:underline}
     隶书：<a href="https://language.moe.gov.tw/material/info?m=9fe3fb11-c3d5-41f2-b029-6d18a2c2fd0d" target="_blank" rel="noopener noreferrer">教育部隶书 3.00</a>（中華民國教育部，<a href="https://creativecommons.org/licenses/by-nd/3.0/tw/" target="_blank" rel="noopener noreferrer">CC BY-ND 3.0 TW</a>，完整原字库）<br>
     古文字：甲骨文字形「鏡原甲骨文 Oracular」(Peichao Qin，版本许可凭据待核) · 说文小篆（本地字体来源及许可待核） · 笔顺组件 Hanzi Writer (MIT) · 笔顺数据 Make Me a Hanzi / Arphic (Arphic Public License)<br>
     词语：CC-CEDICT / MDBG (CC BY-SA 4.0，筛选、拼音转换与分片) · 篆书优先使用峄山碑字体，缺字时用说文小篆补充，实际字体来源见字形卡片；<br>
-    扩展 B–I 区生僻字需系统安装覆盖字体方可显示字形，缺字形时页面会明确标注 · <a href="assets/licenses/README.md" target="_blank" rel="noopener noreferrer">资源来源、许可与待核实事项</a>
+    查字字形由思源宋体和 Jigmo（字雲）补充字体提供 · <a href="fonts/README.md#查字补充字体" target="_blank" rel="noopener noreferrer">字体说明</a> · <a href="assets/licenses/README.md" target="_blank" rel="noopener noreferrer">资源来源、许可与待核实事项</a>
   </footer>
 </div>
 
@@ -455,7 +457,7 @@ footer a:hover{text-decoration:underline}
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="assets/variant-core.js"></script>
+<script src="assets/variant-core.js?v=2"></script>
 <script src="data.js"></script>
 <script src="assets/radical-strokes.js"></script>
 <script src="hwset.js"></script>
@@ -481,10 +483,7 @@ function stripTone(p){
   for (const ch of p.toLowerCase()) s += TONE_MAP[ch] || ch;
   return s.replace(/[^a-zv]/g,'').replace('v','v');
 }
-/* 汉字判定：含 CJK 扩展 B–I（补充平面，JS 中以代理对表示，须用 u 标志匹配） */
-const HAN_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]|[\u{20000}-\u{323AF}]/u;
-const isHan = s => HAN_RE.test(s);
-const isHanOne = c => HAN_RE.test(c);
+const isHanOne = VariantCore.isHan;
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const LV_TXT = {1:'一级·常用', 2:'二级·次常用', 3:'三级·专名用'};
 /* 字形结构码（《汉字结构表》）与使用频率分级（《汉语拼音辞典》） */
@@ -502,13 +501,15 @@ function zoneOf(ch){
   if (cp <= 0x9FFF) return '基本区';
   if (cp <= 0xFAFF) return '兼容区';
   if (cp <= 0x2A6DF) return '扩展B';
-  if (cp <= 0x2B739) return '扩展C';
-  if (cp <= 0x2B81D) return '扩展D';
-  if (cp <= 0x2CEA1) return '扩展E';
+  if (cp <= 0x2B73F) return '扩展C';
+  if (cp <= 0x2B81F) return '扩展D';
+  if (cp <= 0x2CEAF) return '扩展E';
   if (cp <= 0x2EBE0) return '扩展F';
   if (cp <= 0x2EE5D) return '扩展I';
+  if (cp >= 0x2F800 && cp <= 0x2FA1F) return '兼容汉字补充';
   if (cp <= 0x3134A) return '扩展G';
   if (cp <= 0x323AF) return '扩展H';
+  if (cp <= 0x33479) return '扩展J';
   return '扩展区';
 }
 const CMAP = {}; CH.forEach((r,i)=>CMAP[r.c]=i);
@@ -735,7 +736,7 @@ function searchSmart(raw){
   VariantFinder.leave();
   const q = raw.trim();
   if (!q) return renderHome();
-  if (isHan(q)) {
+  if ([...q].some(isHanOne) || /^[\uE000-\uF8FF]$/u.test(q)) {
     return VariantFinder.lookup(q);
   }
   const key = stripTone(q);
@@ -783,7 +784,7 @@ function extCell(w){
   const dst = ('v' in e) ? CH[e.v].c : '';
   const info = [e.r ? e.r + '部' : zoneOf(w), dst ? '→ ' + dst : ''].filter(Boolean).join(' · ');
   return `<div class="cell" data-e="${w}" style="background:#faf7ef" title="${zoneOf(w)}">` +
-    `<div class="big" style="font-family:'Songti SC','Source Han Serif SC VF',serif">${w}</div>` +
+    `<div class="big" style="font-family:var(--lookup-font)">${w}</div>` +
     `<div class="py">${esc(e.p[0])}</div><div class="rd">${info}</div></div>`;
 }
 
@@ -850,11 +851,34 @@ function renderEmpty(q){
     `<div class="empty"><div class="z">？</div>没有匹配的字<br><small>提示：输入完整音节（如 cheng）或单个汉字</small></div>`;
 }
 
-function renderRadical(r){
+async function renderRadical(r){
   const idxs = RD_MAP()[r] || [];
   curList = idxs;
-  const label = radKind ? '康熙部首' : '部首';
-  paintGrid(`${label} <span class="zi">${esc(r)}</span>`, idxs.length + ' 字', idxs, '');
+  const traditional = Boolean(radKind);
+  const label = traditional ? '康熙部首' : '部首';
+  paintGrid(`${label} <span class="zi">${esc(r)}</span>`, idxs.length + ' 个规范字', idxs, '');
+
+  const box = document.createElement('div');
+  box.innerHTML = head('表外字', '正在载入扩展字库…');
+  $('result').appendChild(box);
+  try {
+    const [ok, index] = await Promise.all([
+      new Promise(resolve => loadExt(resolve)),
+      traditional ? VariantFinder.ensure() : null,
+    ]);
+    if (!ok) throw new Error('扩展字库载入失败');
+    if (!box.isConnected || mode !== 'radical') return;
+    const numbers = new Set(idxs.map(i => CH[i].kn));
+    const chars = EXT.chars.filter(rec => index
+      ? index.chars[rec.c]?.r.some(([number]) => numbers.has(number))
+      : rec.r === r);
+    if (!chars.length) return box.remove();
+    box.innerHTML = head('表外字', `${chars.length} 字 · 扩展字库`) +
+      `<div class="grid">${chars.map(rec => extCell(rec.c)).join('')}</div>`;
+    bindCells();
+  } catch (error) {
+    if (box.isConnected && mode === 'radical') renderExtError(box, () => renderRadical(r));
+  }
 }
 
 /* ============ 部件拆字检索 ============ */
@@ -919,7 +943,7 @@ function renderMixedGrid(words){
     const hit = VI[w];
     const dst = hit ? CH[hit[0][0]].c : '';
     return `<div class="cell" data-v="${w}" style="background:#faf7ef"><div class="big" ` +
-      `style="font-family:'Songti SC',serif">${w}</div>` +
+      `style="font-family:var(--lookup-font)">${w}</div>` +
       `<div class="py" style="color:var(--cinnabar)">${dst ? '→ ' + dst : '表外字'}</div>` +
       `<div class="rd">${hit ? vtTxt(hit[0][1]) : '无对照'}</div></div>`;
   }).join('') + `</div>`;
@@ -1052,7 +1076,7 @@ function buildRadbar(filter, autoFirst){
   if (!radKind) all.sort((a, b) => (modernStrokes[a] || 99) - (modernStrokes[b] || 99));
   const sk = radKind ? RDSKS : all.map(r => modernStrokes[r] || 0);
   const pos = {}; all.forEach((r, i) => { if (!(r in pos)) pos[r] = i; });
-  const shown = keys.length ? all.filter(r => keys.includes(r)) : all;
+  const shown = keys.length ? all.filter(r => keys.includes(r) || (radKind && r === '王' && keys.includes('玉'))) : all;
   let html = '', lastSt = -1;
   shown.forEach(r => {
     const n = (cnt[r] || []).length, st = sk[pos[r]] || 0;
@@ -1067,19 +1091,20 @@ function buildRadbar(filter, autoFirst){
   $('radbar').innerHTML = shown.length
     ? html
     : `<div class="rad-none">字库中没有部首「${esc((filter||'').trim())}」，可切换到「${radKind ? '现代规范' : '传统康熙'}」再试</div>`;
-  document.querySelectorAll('.rchip').forEach(c => c.onclick = () => {
-    document.querySelectorAll('.rchip').forEach(x => x.classList.remove('on'));
+  document.querySelectorAll('#radbar .rchip').forEach(c => c.onclick = () => {
+    document.querySelectorAll('#radbar .rchip').forEach(x => x.classList.remove('on'));
     c.classList.add('on');
     curRad = c.dataset.r;
     renderRadical(c.dataset.r);
   });
   const pick = r => {
-    const el = document.querySelector(`.rchip[data-r="${r}"]`);
+    const el = document.querySelector(`#radbar .rchip[data-r="${r}"]`);
     if (!el) return false;
-    document.querySelectorAll('.rchip').forEach(x => x.classList.remove('on'));
+    document.querySelectorAll('#radbar .rchip').forEach(x => x.classList.remove('on'));
     el.classList.add('on'); curRad = r; renderRadical(r); return true;
   };
   if (keys.length && shown.length) pick(shown[0]);                 // 输入了具体部首 → 直接打开
+  else if (keys.length) { curList = []; $('result').replaceChildren(); }
   else if (!keys.length && curRad && shown.includes(curRad)) pick(curRad);
   else if (autoFirst && shown.length) pick(shown[0]);
 }
@@ -1190,13 +1215,13 @@ function renderDetail(r, opts){
   // 本机字体若没有该字形，明确说明并提供复制，避免误判为加载失败
   const noGlyph = !hasSystemGlyph(zi);
   const glyphWarn = noGlyph
-    ? `<div class="glyph-warn"><span>本机系统字体没有「${esc(zi)}」的字形（${zoneOf(zi)}字），上方若显示为空白属字体覆盖不足，非页面故障。</span>` +
+    ? `<div class="glyph-warn"><span>如果字形显示为方框，可以复制原字，或按 Unicode 编码 U+${zi.codePointAt(0).toString(16).toUpperCase()} 核对。</span>` +
       `<button id="copyZi">复制该字</button></div>`
     : '';
 
   $('modal').innerHTML = note + `
     <div class="m-head">
-      <div class="m-zi"${opts.ext ? ` style="font-family:'Songti SC','Source Han Serif SC VF',serif"` : ''}>${zi}</div>
+      <div class="m-zi"${opts.ext ? ` style="font-family:var(--lookup-font)"` : ''}>${zi}</div>
       <div class="m-info">
         <div>拼音 <b>${r.p.map(esc).join(' / ')}</b></div>
         ${r.r ? `<div>部首 <b>${esc(r.r)}</b>${r.kr ? `<small style="color:var(--faint);font-size:11px"> · 康熙 ${esc(r.kr)}部</small>` : ''}</div>` : ''}
@@ -1413,10 +1438,10 @@ function openVariantDetail(ch){
 /* 异体字详情共用弹层：大字形 + 自定义内容 */
 function showMini(ch, body){
   $('modal').innerHTML =
-    `<div class="m-head"><div class="m-zi" style="font-family:'Songti SC','Source Han Serif SC VF',serif">${ch}</div>` +
+    `<div class="m-head"><div class="m-zi" style="font-family:var(--lookup-font)">${isHanOne(ch) ? esc(ch) : '私用字'}</div>` +
     `<div class="m-info"><span class="lv">表外字</span><div>不在《通用规范汉字表》8105 字内</div></div>` +
     `<button type="button" class="m-close" id="close" aria-label="关闭详情">✕</button></div>${body}` +
-    `<div class="m-foot">异体字以系统宋体呈现（书法字库多未收录生僻字形）</div>`;
+    `<div class="m-foot">字形使用网页字体或本机字体显示</div>`;
   $('overlay').classList.add('show');
   $('modal').scrollTop = 0;
   $('close').onclick = closeDetail;
@@ -1623,6 +1648,6 @@ syncQueryViewport();
 loadFontCss();
 setTimeout(() => fontStatCheck(2), 5000);
 </script>
-<script src="assets/variant-finder.js"></script>
+<script src="assets/variant-finder.js?v=3"></script>
 </body>
 </html>

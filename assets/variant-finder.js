@@ -6,10 +6,18 @@
   const OCR_AVAILABLE = false; // 截图找字暂未开放，保留接入代码供后续恢复。
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let data = null, loading = null, page = 0, current = [], query = 0;
+  let listReturn = null;
   let submode = 'radical', ocrReady = false, ocrAbort = null, statusVersion = 0;
   let image = null, imageVersion = 0, selection = null, dragStart = null, crop = '';
   const canvas = $('vfCanvas'), ctx = canvas.getContext('2d');
   const kindText = {traditional:'繁简对应', variant:'异体对应', reference:'语义关联 · 仅供参考'};
+  const unicodeCode = ch => 'U+' + ch.codePointAt(0).toString(16).toUpperCase();
+  const unicodeGlyphs = {'𫠞':'https://www.unicode.org/irg/disunified.html'};
+
+  function glyph(ch, className){
+    if (core.isHan(ch)) return `<span class="${className}">${escape(ch)}</span>`;
+    return `<span class="${className} glyph-unavailable">私用字</span>`;
+  }
 
   function active(){ return document.querySelector('.tab.on')?.dataset.mode; }
   function status(message, error=false){
@@ -51,15 +59,35 @@
     const cards = current.slice(page * size, (page + 1) * size).map(([ch,r]) => {
       const targets = core.matches(data,ch).filter(x => !x.reference).map(x => x.character);
       const hint = targets.length ? '→ ' + targets.join(' / ') : r.m?.length ? '有参考关系' : r.std ? '规范字' : '暂未收录对应字';
-      return `<button type="button" class="cell vf-card" data-vchar="${escape(ch)}" aria-label="查看 ${escape(ch)} ${escape(hint)}"><div class="big">${escape(ch)}</div>` +
-        `<div class="py">${escape(hint)}</div><div class="rd">${r.s.length ? r.s.join('/') + '画' : '笔画未知'} · U+${ch.codePointAt(0).toString(16).toUpperCase()}</div></button>`;
+      return `<button type="button" class="cell vf-card" data-vchar="${escape(ch)}" aria-label="查看 ${escape(ch)} ${unicodeCode(ch)} ${escape(hint)}">${glyph(ch, 'big')}` +
+        `<div class="py">${escape(hint)}</div><div class="rd">${r.s.length ? r.s.join('/') + '画' : '笔画未知'} · ${unicodeCode(ch)}</div></button>`;
     }).join('');
-    $('result').innerHTML = `<div class="result-head"><h2>按字形找异体字</h2><span>${current.length} 字 · 第 ${page + 1}/${pages} 页</span></div>` +
+    $('result').innerHTML = `<div class="result-head"><h2>按字形找字</h2><span>${current.length} 字 · 第 ${page + 1}/${pages} 页</span></div>` +
       (cards ? `<div class="grid">${cards}</div>` : '<div class="empty">没有符合条件的字。可取消笔画限定、改选相邻部首，或按可辨认的部件查找。</div>') +
       `<div class="vf-paging"><button type="button" class="copy-btn" id="vfPrevious" ${page === 0 ? 'disabled' : ''}>上一页</button><span>${page + 1} / ${pages}</span>` +
       `<button type="button" class="copy-btn" id="vfNext" ${page + 1 >= pages ? 'disabled' : ''}>下一页</button></div>`;
     $('vfPrevious').onclick = () => { page--; paginate(); };
     $('vfNext').onclick = () => { page++; paginate(); };
+  }
+  function returnToList(){
+    const {character, top} = listReturn;
+    listReturn = null;
+    ++query;
+    paginate();
+    const card = $('result').querySelector(`[data-vchar="${CSS.escape(character)}"]`);
+    card.focus({preventScroll:true});
+    window.scrollBy(0, card.getBoundingClientRect().top - top);
+  }
+  function showLookup(html){
+    const result = $('result');
+    const back = listReturn ? '<button type="button" class="copy-btn" id="vfReturnList">返回列表</button>' : '';
+    result.innerHTML = back + html;
+    if (listReturn) {
+      const button = $('vfReturnList');
+      button.onclick = returnToList;
+      button.focus({preventScroll:true});
+      button.scrollIntoView({block:'start'});
+    }
   }
   async function filter(){
     const version = ++query;
@@ -75,6 +103,7 @@
       await ensure();
       if (version !== query || active() !== 'variant' || submode !== 'radical') return;
       if ($('vfRadical').options.length < 2) radicalControls();
+      listReturn = null;
       current = core.filter(data,opts); page = 0; paginate();
       status('按原字自身的部首与笔画检索。看不清笔画可先留空；候选字显示为方框时，仍可复制字符与编码核对。');
     } catch (error) {
@@ -84,18 +113,23 @@
   async function lookup(raw){
     const version = ++query;
     const chs = [...raw.trim()];
-    if (chs.length !== 1 || !core.isHan(chs[0])) {
-      $('result').innerHTML = '<div class="vf-result">请粘贴一个汉字；不知道原字时，可按部首、笔画或部件查找。</div>'; return;
+    if (chs.length !== 1) {
+      showLookup('<div class="vf-result">请粘贴一个汉字；不知道原字时，可按部首、笔画或部件查找。</div>');
+      return;
     }
     const ch = chs[0], expectedMode = active();
     $('result').innerHTML = '<div class="vf-result">正在查找对应关系…</div>';
     try {
       await ensure();
       if (version !== query || expectedMode !== active()) return;
+      if (!core.isHan(ch) && !data.chars[ch]) {
+        showLookup('<div class="vf-result">请粘贴一个汉字；不知道原字时，可按部首、笔画或部件查找。</div>');
+        return;
+      }
       renderLookup(ch);
     } catch (error) {
       if (version !== query || expectedMode !== active()) return;
-      $('result').innerHTML = '<div class="vf-result">异体字索引加载失败。<button type="button" class="copy-btn" id="vfRetry">重试</button></div>';
+      showLookup('<div class="vf-result">异体字索引加载失败。<button type="button" class="copy-btn" id="vfRetry">重试</button></div>');
       $('vfRetry').onclick = () => lookup(ch);
     }
   }
@@ -105,7 +139,10 @@
     const warning = r?.std ? '本字也在规范字表中，不能一律替换；人名、地名尤其需要核对原文。' :
       definite.length > 1 ? '有多个对应候选，请结合读音、含义与上下文选择。' :
       !definite.length ? '暂未收录明确的规范字对应关系；参考关联不代表可以直接替换。' : '以下对应关系来自本地字库，使用时请保留原文核对。';
-    let html = `<div class="vf-result"><span class="original">${escape(ch)}</span><small>U+${ch.codePointAt(0).toString(16).toUpperCase()}${r?.p ? ' · ' + escape(r.p.join(' / ')) : ''}</small>` +
+    const source = unicodeGlyphs[ch];
+    let html = `<div class="vf-result">${glyph(ch, 'original')}<small>${unicodeCode(ch)}${r?.p ? ' · ' + escape(r.p.join(' / ')) : ''}</small>` +
+      (source ? `<p><a href="${source}" target="_blank" rel="noopener noreferrer">查阅 Unicode 字形</a></p>` :
+        !core.isHan(ch) ? '<p>私用区编码，字形由来源字库定义。</p>' : '') +
       `<p>${escape(warning)}</p><button type="button" class="copy-btn" data-copy="${escape(ch)}">复制原字</button> <button type="button" class="copy-btn" data-detail="${escape(ch)}">查看原字详情</button></div>`;
     for (const m of matches) {
       const target = data.chars[m.character];
@@ -116,7 +153,7 @@
     }
     if (r?.k?.length) html += `<div class="vf-result"><p>原字部件结构（用于检索，不代表字源）</p><p>${escape(r.k.map(parts => parts.join(' + ')).join(' / '))}</p></div>`;
     if (!matches.length) html += '<div class="vf-result">没有对应关系不代表原字不存在或写错。可以更换部首条件继续查找。</div>';
-    $('result').innerHTML = html;
+    showLookup(html);
   }
   async function checkStatus(){
     const version = ++statusVersion;
@@ -250,6 +287,7 @@
   }
   function setSubmode(value){
     ++query; ++statusVersion; submode = value; cancelOcr();
+    listReturn = null;
     $('vfRadicalMode').hidden = value !== 'radical';
     $('vfOcrMode').hidden = value !== 'ocr' || !OCR_AVAILABLE;
     $('vfOcrUnavailable').hidden = value !== 'ocr' || OCR_AVAILABLE;
@@ -267,11 +305,11 @@
       catch (error) { status('异体字索引加载失败，请点击“筛选”重试。',true); }
     }
   }
-  function leave(){ ++query; ++statusVersion; cancelOcr(); clearCandidates(); }
+  function leave(){ ++query; ++statusVersion; listReturn = null; cancelOcr(); clearCandidates(); }
   $('vfFilter').onclick = () => { filter(); if (data) radicalControls(); };
   $('vfReset').onclick = () => {
     $('vfRadical').value=''; $('vfStrokes').value=''; $('vfParts').value='';
-    $('vfStrokeKind').value='total'; $('vfNearby').checked=false; $('vfMapped').checked=true;
+    $('vfStrokeKind').value='total'; $('vfNearby').checked=false; $('vfMapped').checked=false;
     if (data) radicalControls(); filter();
   };
   $('vfRadicals').onclick = event => {
@@ -298,7 +336,11 @@
   };
   $('result').addEventListener('click',async event => {
     const button = event.target.closest('[data-vchar],[data-copy],[data-detail]'); if(!button) return;
-    if (button.dataset.vchar) return lookup(button.dataset.vchar);
+    if (button.dataset.vchar) {
+      const character = button.dataset.vchar;
+      listReturn = {character, top:button.getBoundingClientRect().top};
+      return lookup(character);
+    }
     if (button.dataset.copy) {
       try { await navigator.clipboard.writeText(button.dataset.copy); button.textContent='已复制'; }
       catch(error) { button.textContent='复制失败，请手动选择字符'; }
@@ -306,8 +348,9 @@
       const char = button.dataset.detail;
       if (CMAP[char] != null) openDetail(CMAP[char]);
       else loadExt(ok => {
+        if (!button.isConnected) return;
         if (ok && EXT.idx[char] != null) openExtDetail(char);
-        else showMini(char, '<div class="var-block">当前字库没有更多释义，原字编码为 U+'+char.codePointAt(0).toString(16).toUpperCase()+'。</div>');
+        else showMini(char, '<div class="var-block">当前字库没有更多释义，原字编码为 '+unicodeCode(char)+'。</div>');
       });
     }
   });
