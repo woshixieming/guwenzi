@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-DEPLOY_USER=""
-DEPLOY_HOST=""
-DEPLOY_PORT=""
-DEPLOY_PATH="${DEPLOY_PATH:-/www/wwwroot/character.xm4021.com}"
-BACKUP_PATH="${BACKUP_PATH:-${DEPLOY_PATH}.backups}"
+DEPLOY_USER="${DEPLOY_USER:-}"
+DEPLOY_HOST="${DEPLOY_HOST:-}"
+DEPLOY_PORT="${DEPLOY_PORT:-22}"
+DEPLOY_PATH="${DEPLOY_PATH:-}"
+BACKUP_PATH="${BACKUP_PATH:-}"
 HEALTH_URL="${HEALTH_URL:-}"
 RUN_CHECK="${RUN_CHECK:-1}"
 DRY_RUN=0
@@ -31,9 +31,10 @@ Usage:
   --with-ocr / --ocr-only 可与 --dry-run 或 --preview 组合使用
 
 Environment:
-  DEPLOY_PATH   网站根目录，默认 /www/wwwroot/character.xm4021.com
+  DEPLOY_HOST / DEPLOY_PORT / DEPLOY_USER   SSH 地址、端口、用户名
+  DEPLOY_PATH   网站根目录
   BACKUP_PATH   备份目录，默认 ${DEPLOY_PATH}.backups（必须在网站目录外）
-  HEALTH_URL    可选的发布后 HTTP 检查地址，例如 https://character.xm4021.com/
+  HEALTH_URL    可选的发布后 HTTP 检查地址
   RUN_CHECK=0   跳过本地离线资源完整性校验
   OCR_DEPLOY_PATH   后端专用目录，默认 /opt/guwenzi-ocr（网站目录之外）
   OCR_CONFIG_PATH   私有配置路径，默认 /etc/guwenzi/ocr.json（代码和网站目录之外）
@@ -41,12 +42,12 @@ Environment:
   OCR_PORT          后端本机监听端口，默认 8010
 
 Notes:
-  发布和远端预览时在终端输入服务器 IP/域名、SSH 端口和用户名，无默认值。
-  连接参数只用于本次执行，不写入文件；--dry-run 不需要输入连接参数。
+  将 deploy-artifact.example.sh 复制为 deploy-artifact.sh，在本地脚本中填写发布参数。
+  --dry-run 无需填写连接参数。
   使用 SSH 密钥或交互式认证，不在脚本中保存密码。
   增量模式需要两端安装 rsync，按内容校验跳过未变化的文件。
   显示变化文件、上传进度和传输统计；资源同步成功后才更新首页。
-  全量模式显示包大小和 SCP 进度；非终端输出需要 Python 3。
+  全量模式显示包大小，在交互式终端显示 SCP 进度。
   仅上传运行资源，不上传 .env、Git、原始 data/ 或维护脚本。
   增量模式只备份被覆盖的文件；全量模式备份已有的同名文件/目录。
   不自动删除服务器上其他文件，也不自动清理历史备份。
@@ -73,6 +74,20 @@ done
 [[ "$PREVIEW" == 0 || ( "$FULL" == 0 && "$DRY_RUN" == 0 ) ]] || fail "--preview 不能与 --full 或 --dry-run 一起使用。"
 
 [[ "$OCR_ONLY" == 0 || "$FULL" == 0 ]] || fail "--ocr-only 不能与 --full 一起使用。"
+# 本地校验可使用示例目录，连接服务器时要求填写真实参数。
+if [[ "$DRY_RUN" == 1 && -z "$DEPLOY_PATH" ]]; then
+  DEPLOY_PATH="/www/wwwroot/example.org"
+fi
+BACKUP_PATH="${BACKUP_PATH:-${DEPLOY_PATH}.backups}"
+if [[ "$DRY_RUN" == 0 ]]; then
+  [[ -n "$DEPLOY_HOST" && -n "$DEPLOY_USER" && -n "$DEPLOY_PATH" ]] ||
+    fail "请在本地 deploy-artifact.sh 中填写 DEPLOY_HOST、DEPLOY_USER 和 DEPLOY_PATH。"
+  # 限制远端参数字符，避免 SSH 的远端 shell 将输入解释为命令。
+  [[ "$DEPLOY_USER" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_-]*$ ]] || fail "无效的 SSH 用户。"
+  [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || fail "无效的服务器地址。"
+  [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] || fail "无效的 SSH 端口。"
+  [[ $((10#$DEPLOY_PORT)) -ge 1 && $((10#$DEPLOY_PORT)) -le 65535 ]] || fail "SSH 端口超出范围。"
+fi
 if [[ "$WITH_OCR" == 1 ]]; then
   [[ "$OCR_SERVICE_NAME" =~ ^[a-zA-Z][a-zA-Z0-9_-]*$ ]] || fail "无效的 OCR 服务名。"
   [[ "$OCR_PORT" =~ ^[0-9]{1,5}$ ]] || fail "无效的 OCR 端口。"
@@ -101,9 +116,6 @@ if [[ "$DRY_RUN" == 0 ]]; then
   command -v ssh >/dev/null 2>&1 || fail "缺少命令：ssh"
   if [[ "$FULL" == 1 || "$WITH_OCR" == 1 ]]; then
     command -v scp >/dev/null 2>&1 || fail "缺少命令：scp"
-    if [[ ! -t 1 || ! -t 2 ]]; then
-      command -v python3 >/dev/null 2>&1 || fail "非终端环境显示上传进度需要 Python 3。"
-    fi
   fi
   if [[ "$FULL" == 0 && "$OCR_ONLY" == 0 ]]; then
     command -v rsync >/dev/null 2>&1 || fail "增量发布需要本地安装 rsync。"
@@ -142,23 +154,6 @@ if config.get('enabled') is not False or config.get('allow_remote_http', False) 
 PY_CHECK
 fi
 
-if [[ "$DRY_RUN" == 0 ]]; then
-  # 从控制终端读取，避免连接参数与后续 SSH/rsync 的标准输入混在一起。
-  if ! { exec 3<> /dev/tty; } 2>/dev/null; then
-    fail "请在交互式终端运行，以输入服务器地址、端口和用户名；本地检查可使用 --dry-run。"
-  fi
-  read -r -p "服务器 IP 或域名：" DEPLOY_HOST <&3 || fail "未读取到服务器地址。"
-  read -r -p "SSH 端口：" DEPLOY_PORT <&3 || fail "未读取到 SSH 端口。"
-  read -r -p "SSH 用户名：" DEPLOY_USER <&3 || fail "未读取到 SSH 用户名。"
-  exec 3>&-
-
-  # 限制远端参数字符，避免 SSH 的远端 shell 将输入解释为命令。
-  [[ "$DEPLOY_USER" =~ ^[a-zA-Z0-9_][a-zA-Z0-9_-]*$ ]] || fail "无效的 SSH 用户。"
-  [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]] || fail "无效的服务器地址。"
-  [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] || fail "无效的 SSH 端口。"
-  [[ $((10#$DEPLOY_PORT)) -ge 1 && $((10#$DEPLOY_PORT)) -le 65535 ]] || fail "SSH 端口超出范围。"
-fi
-
 ARTIFACT_PATH="$(mktemp "${TMPDIR:-/tmp}/guwenzi-$(date +%Y%m%d%H%M%S).XXXXXX")"
 OCR_ARTIFACT_PATH=""
 cleanup() {
@@ -180,20 +175,7 @@ if [[ ( "$FULL" == 1 || "$WITH_OCR" == 1 ) && "$(tar --version)" == *bsdtar* ]];
 fi
 
 upload_artifact() {
-  SCP_COMMAND=(scp -P "$DEPLOY_PORT" -o ConnectTimeout=15 -o LogLevel=INFO "$1" "${REMOTE}:$2")
-  if [[ -t 1 && -t 2 ]]; then
-    "${SCP_COMMAND[@]}"
-  else
-    # SCP 在非 TTY 环境默认隐藏进度；伪终端保留原生进度及认证交互。
-    python3 -c '
-import os
-import pty
-import sys
-
-status = pty.spawn(sys.argv[1:])
-sys.exit(os.waitstatus_to_exitcode(status))
-' "${SCP_COMMAND[@]}"
-  fi
+  scp -P "$DEPLOY_PORT" -o ConnectTimeout=15 -o LogLevel=INFO "$1" "${REMOTE}:$2"
 }
 
 run_ocr_remote() {

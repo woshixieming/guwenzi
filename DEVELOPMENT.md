@@ -48,9 +48,16 @@ python3 scripts/sync_offline_assets.py
 
 ## 发布到服务器
 
-发布或远端预览时，脚本会依次要求输入服务器 IP/域名、SSH 端口和用户名。
-三个连接参数没有默认值，不从环境变量读取，也不保存到文件。
-`--dry-run` 只执行本地检查，不询问连接参数。
+首次使用时，从仓库里的示例创建本地发布脚本。
+
+```bash
+cp scripts/deploy-artifact.example.sh scripts/deploy-artifact.sh
+chmod 700 scripts/deploy-artifact.sh
+```
+
+在本地脚本顶部填写 `DEPLOY_HOST`、`DEPLOY_PORT`、`DEPLOY_USER` 和 `DEPLOY_PATH`。
+Git 忽略 `scripts/deploy-artifact.sh`，发布流程由仓库中的 `scripts/deploy-artifact-runner.sh` 提供。
+`--dry-run` 可以在填写服务器参数前运行。
 
 ```bash
 ./scripts/deploy-artifact.sh --dry-run  # 仅本地校验，不连接服务器
@@ -82,25 +89,14 @@ python3 scripts/sync_offline_assets.py
 ./scripts/deploy-artifact.sh --full            # 全量发布
 ```
 
-全量模式显示包大小（MiB 和字节数）及 SCP 上传进度，非终端输出环境通过 Python 3 保留进度。
+全量模式显示包大小（MiB 和字节数）。在交互式终端中，SCP 会显示上传进度。
 打包时排除 macOS 扩展属性和 ACL，避免 Linux 解包时出现 `LIBARCHIVE.xattr.com.apple.quarantine` 等警告。
 全量模式会将已有的对应文件/目录整体备份为备份根目录下的 `.tar.gz` 文件。
 
-目标目录和备份目录仍通过 `DEPLOY_PATH`、`BACKUP_PATH` 环境变量设置，连接信息在终端中输入。
-不需要新增或提交本地配置文件；密码与密钥口令由 SSH 自行处理。没有交互式终端时，正式发布和远端预览会报错退出。
-例如指定自己的站点目录：
-
-```bash
-DEPLOY_PATH=/www/wwwroot/example.org ./scripts/deploy-artifact.sh
-```
-
-未设置 `DEPLOY_PATH` 时使用脚本内现有的网站目录。`BACKUP_PATH` 默认为 `${DEPLOY_PATH}.backups`，且必须位于网站目录之外。
+在本地脚本填写 `DEPLOY_PATH` 来指定网站目录。`BACKUP_PATH` 默认为 `${DEPLOY_PATH}.backups`，且必须位于网站目录之外。
+SSH 自行处理密钥、密码和密钥口令。
 更多选项见 `./scripts/deploy-artifact.sh --help`。
-需要发布后检查公网访问时执行：
-
-```bash
-HEALTH_URL=https://example.org/ ./scripts/deploy-artifact.sh
-```
+如需检查发布后的公网访问，在本地脚本中填写 `HEALTH_URL`。
 
 HTTP 检查失败会返回非零状态，但不会自动回滚已上传的文件；预览模式不执行 HTTP 检查。
 
@@ -177,7 +173,7 @@ python3 server/ocr_server.py --config /etc/guwenzi/ocr.json --bind 127.0.0.1 --p
 
 ### 线上接入
 
-默认命令仍只发布静态网站；需要 OCR 后端时使用以下选项，连接地址、端口和 SSH 用户名仍在终端输入：
+默认命令只发布静态网站。需要发布 OCR 后端时，使用以下选项，连接参数沿用本地脚本中填写的值。
 
 ```bash
 ./scripts/deploy-artifact.sh --with-ocr --dry-run  # 本地检查，不连接服务器
@@ -263,7 +259,8 @@ node tests/radical-strokes.test.cjs
 python3 -m unittest discover -s tests -p 'test_*.py'
 python3 scripts/build_variant_index.py --check
 python3 scripts/sync_offline_assets.py --check
-bash -n scripts/deploy-artifact.sh
+bash -n scripts/deploy-artifact.example.sh
+bash -n scripts/deploy-artifact-runner.sh
 bash -n scripts/deploy-ocr-remote.sh
 ```
 

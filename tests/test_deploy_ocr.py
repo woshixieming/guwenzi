@@ -206,72 +206,39 @@ else:
         self.assertFalse((self.code/'current').exists())
         self.assertFalse(self.pidfile.exists())
 
-    def interactive(self, script, arguments, env, capture_stdout=False):
-        # 在独立、无后台线程的进程里创建控制终端，避免 macOS 多线程 forkpty。
-        driver = r'''import json, os, pty, select, signal, sys, time
-script, arguments = sys.argv[1], json.loads(sys.argv[2])
-pid, master = pty.fork()
-if pid == 0:
-    os.chdir('/tmp')
-    if sys.argv[3]:
-        fd = os.open(sys.argv[3], os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        os.dup2(fd, 1)
-        os.close(fd)
-    os.execvp('bash', ['bash', script, *arguments])
-output = b''
-sent = 0
-prompts = ['服务器 IP 或域名：', 'SSH 端口：', 'SSH 用户名：']
-inputs = ['198.51.100.10', '2222', 'deployer']
-reaped = False
-try:
-    deadline = time.monotonic() + 30
-    while time.monotonic() < deadline:
-        if not select.select([master], [], [], .1)[0]:
-            continue
-        try:
-            chunk = os.read(master, 65536)
-        except OSError:
-            break
-        if not chunk:
-            break
-        output += chunk
-        if sent < len(prompts) and prompts[sent].encode() in output:
-            os.write(master, (inputs[sent] + '\n').encode())
-            sent += 1
-    else:
-        raise TimeoutError('interactive deploy timeout')
-    _, status = os.waitpid(pid, 0)
-    reaped = True
-    print(json.dumps([os.waitstatus_to_exitcode(status), output.decode(errors='replace')]))
-finally:
-    if not reaped:
-        os.killpg(pid, signal.SIGTERM)
-        os.waitpid(pid, 0)
-    os.close(master)
-'''
-        capture=self.base/'captured-stdout.txt' if capture_stdout else None
-        result=subprocess.run([sys.executable,'-c',driver,str(script),json.dumps(arguments),str(capture) if capture else ''],
-                              env=env,capture_output=True,text=True,timeout=35)
-        self.assertEqual(result.returncode,0,result.stderr)
-        code,output=json.loads(result.stdout)
-        return code,output+(capture.read_text() if capture else '')
+    def deploy(self, script, arguments, env):
+        result = subprocess.run(['bash', str(script), *arguments], cwd='/tmp', env=env,
+                                stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=35)
+        return result.returncode, result.stdout + result.stderr
+
+    def local_script(self, project):
+        scripts = project / 'scripts'
+        for name in ('deploy-artifact-runner.sh', 'deploy-ocr-remote.sh'):
+            shutil.copy2(ROOT / 'scripts' / name, scripts / name)
+        template = (ROOT / 'scripts/deploy-artifact.example.sh').read_text()
+        for name, value in {'HOST': '198.51.100.10', 'PORT': '2222',
+                            'USER': 'deployer', 'PATH': str(self.web)}.items():
+            original = '22' if name == 'PORT' else ''
+            template = template.replace(f'export DEPLOY_{name}="{original}"',
+                                        f'export DEPLOY_{name}="{value}"')
+        script = scripts / 'deploy-artifact.sh'
+        script.write_text(template)
+        return script
 
     def test_main_ocr_only_upload_and_offline_checks(self):
         project=self.base/'project'
         (project/'scripts').mkdir(parents=True);(project/'server').mkdir()
-        for name in ('deploy-artifact.sh','deploy-ocr-remote.sh'):
-            shutil.copy2(ROOT/'scripts'/name,project/'scripts'/name)
+        script = self.local_script(project)
         for name in ('ocr_server.py','ocr-config.example.json'):
             shutil.copy2(ROOT/'server'/name,project/'server'/name)
-        env=dict(self.env,DEPLOY_PATH=str(self.web),OCR_DEPLOY_PATH=str(self.code),
+        env=dict(self.env,OCR_DEPLOY_PATH=str(self.code),
                  OCR_CONFIG_PATH=str(self.config),OCR_PORT=str(self.port),RUN_CHECK='0')
-        script=project/'scripts/deploy-artifact.sh'
         result=subprocess.run(['bash',str(script),'--ocr-only','--dry-run'],env=env,capture_output=True,text=True,timeout=10)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertFalse(self.log.exists())
-        code,output=self.interactive(script,['--ocr-only','--preview'],env)
+        code,output=self.deploy(script,['--ocr-only','--preview'],env)
         self.assertEqual(code,0,output);self.assertFalse(self.code.exists())
-        code,output=self.interactive(script,['--ocr-only'],env,capture_stdout=True)
+        code,output=self.deploy(script,['--ocr-only'],env)
         self.assertEqual(code,0,output)
         self.assertEqual(self.status(),{'configured':False})
         self.assertFalse(self.web.exists())
@@ -280,27 +247,25 @@ finally:
     def test_combined_incremental_and_full_website_deployment(self):
         project=self.base/'project'
         (project/'scripts').mkdir(parents=True);(project/'server').mkdir()
-        for name in ('deploy-artifact.sh','deploy-ocr-remote.sh'):
-            shutil.copy2(ROOT/'scripts'/name,project/'scripts'/name)
+        script = self.local_script(project)
         for name in ('ocr_server.py','ocr-config.example.json'):
             shutil.copy2(ROOT/'server'/name,project/'server'/name)
         for name in ('index.html','data.js','data_ext.js','hwset.js'):
             (project/name).write_text('website fixture')
         for name in ('assets','fonts','defs','words'):
             (project/name).mkdir();(project/name/'fixture.txt').write_text('resource fixture')
-        env=dict(self.env,DEPLOY_PATH=str(self.web),OCR_DEPLOY_PATH=str(self.code),
+        env=dict(self.env,OCR_DEPLOY_PATH=str(self.code),
                  OCR_CONFIG_PATH=str(self.config),OCR_PORT=str(self.port),RUN_CHECK='0')
-        script=project/'scripts/deploy-artifact.sh'
-        code,output=self.interactive(script,['--with-ocr','--preview'],env)
+        code,output=self.deploy(script,['--with-ocr','--preview'],env)
         self.assertEqual(code,0,output)
         self.assertFalse(self.web.exists());self.assertFalse(self.code.exists())
-        code,output=self.interactive(script,['--with-ocr'],env)
+        code,output=self.deploy(script,['--with-ocr'],env)
         self.assertEqual(code,0,output)
         self.assertEqual((self.web/'index.html').read_text(),'website fixture')
         self.assertFalse((self.web/'server').exists())
         self.assertEqual(self.status(),{'configured':False})
         (project/'index.html').write_text('full fixture')
-        code,output=self.interactive(script,['--full','--with-ocr'],env)
+        code,output=self.deploy(script,['--full','--with-ocr'],env)
         self.assertEqual(code,0,output)
         self.assertEqual((self.web/'index.html').read_text(),'full fixture')
         self.assertEqual(self.status(),{'configured':False})
