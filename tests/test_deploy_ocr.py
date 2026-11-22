@@ -52,10 +52,14 @@ elif name == 'sudo':
 elif name == 'ssh':
     i=args.index('deployer@198.51.100.10')
     assert args[args.index('-p')+1]=='2222'
+    assert args[args.index('-i')+1]==str(base/"fixture's SSH key")
+    assert all(option in args for option in ('BatchMode=yes', 'PreferredAuthentications=publickey', 'IdentitiesOnly=yes'))
     sys.exit(subprocess.run(['bash','-c',' '.join(args[i+1:])],stdin=sys.stdin).returncode)
 elif name == 'scp':
     import shutil
     assert args[args.index('-P')+1]=='2222'
+    assert args[args.index('-i')+1]==str(base/"fixture's SSH key")
+    assert all(option in args for option in ('BatchMode=yes', 'PreferredAuthentications=publickey', 'IdentitiesOnly=yes'))
     shutil.copyfile(args[-2],args[-1].split(':',1)[1])
 elif name == 'systemctl':
     pidfile=base/'service.pid'
@@ -222,6 +226,9 @@ else:
             template = template.replace(f'export DEPLOY_{name}="{original}"',
                                         f'export DEPLOY_{name}="{value}"')
         script = scripts / 'deploy-artifact.sh'
+        key = self.base / "fixture's SSH key"
+        key.touch()
+        template = template.replace('export DEPLOY_SSH_KEY=""', f'export DEPLOY_SSH_KEY="{key}"')
         script.write_text(template)
         return script
 

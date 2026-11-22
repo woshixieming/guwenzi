@@ -56,6 +56,8 @@ chmod 700 scripts/deploy-artifact.sh
 ```
 
 在本地脚本顶部填写 `DEPLOY_HOST`、`DEPLOY_PORT`、`DEPLOY_USER` 和 `DEPLOY_PATH`。
+在 `DEPLOY_SSH_KEY` 填写 SSH 私钥路径，例如 `$HOME/.ssh/id_ed25519`。留空时，OpenSSH 会选择默认密钥或使用 `ssh-agent` 中的密钥。
+服务器上的对应账号须已授权该公钥。私钥带口令时，先用 `ssh-add` 将其加入 `ssh-agent`。
 Git 忽略 `scripts/deploy-artifact.sh`，发布流程由仓库中的 `scripts/deploy-artifact-runner.sh` 提供。
 `--dry-run` 可以在填写服务器参数前运行。
 
@@ -94,7 +96,7 @@ Git 忽略 `scripts/deploy-artifact.sh`，发布流程由仓库中的 `scripts/d
 全量模式会将已有的对应文件/目录整体备份为备份根目录下的 `.tar.gz` 文件。
 
 在本地脚本填写 `DEPLOY_PATH` 来指定网站目录。`BACKUP_PATH` 默认为 `${DEPLOY_PATH}.backups`，且必须位于网站目录之外。
-SSH 自行处理密钥、密码和密钥口令。
+远端预览和正式发布会先检查 SSH 公钥登录。增量、全量和 OCR 发布共用同一套 SSH 参数。
 更多选项见 `./scripts/deploy-artifact.sh --help`。
 如需检查发布后的公网访问，在本地脚本中填写 `HEALTH_URL`。
 

@@ -4,6 +4,7 @@ set -Eeuo pipefail
 DEPLOY_USER="${DEPLOY_USER:-}"
 DEPLOY_HOST="${DEPLOY_HOST:-}"
 DEPLOY_PORT="${DEPLOY_PORT:-22}"
+DEPLOY_SSH_KEY="${DEPLOY_SSH_KEY:-}"
 DEPLOY_PATH="${DEPLOY_PATH:-}"
 BACKUP_PATH="${BACKUP_PATH:-}"
 HEALTH_URL="${HEALTH_URL:-}"
@@ -32,6 +33,7 @@ Usage:
 
 Environment:
   DEPLOY_HOST / DEPLOY_PORT / DEPLOY_USER   SSH 地址、端口、用户名
+  DEPLOY_SSH_KEY   可选的本地 SSH 私钥路径，留空使用 OpenSSH 默认密钥或 ssh-agent
   DEPLOY_PATH   网站根目录
   BACKUP_PATH   备份目录，默认 ${DEPLOY_PATH}.backups（必须在网站目录外）
   HEALTH_URL    可选的发布后 HTTP 检查地址
@@ -44,7 +46,7 @@ Environment:
 Notes:
   将 deploy-artifact.example.sh 复制为 deploy-artifact.sh，在本地脚本中填写发布参数。
   --dry-run 无需填写连接参数。
-  使用 SSH 密钥或交互式认证，不在脚本中保存密码。
+  使用 SSH 公钥认证。带口令的私钥可先通过 ssh-add 加入 ssh-agent。
   增量模式需要两端安装 rsync，按内容校验跳过未变化的文件。
   显示变化文件、上传进度和传输统计；资源同步成功后才更新首页。
   全量模式显示包大小，在交互式终端显示 SCP 进度。
@@ -79,6 +81,15 @@ if [[ "$DRY_RUN" == 1 && -z "$DEPLOY_PATH" ]]; then
   DEPLOY_PATH="/www/wwwroot/example.org"
 fi
 BACKUP_PATH="${BACKUP_PATH:-${DEPLOY_PATH}.backups}"
+SSH_OPTIONS=(-o ConnectTimeout=15 -o BatchMode=yes -o PreferredAuthentications=publickey)
+if [[ -n "$DEPLOY_SSH_KEY" ]]; then
+  if [[ "$DEPLOY_SSH_KEY" == '~/'* ]]; then
+    DEPLOY_SSH_KEY="$HOME/${DEPLOY_SSH_KEY:2}"
+  fi
+  [[ "$DEPLOY_SSH_KEY" == /* && -f "$DEPLOY_SSH_KEY" && -r "$DEPLOY_SSH_KEY" && "$DEPLOY_SSH_KEY" != *.pub ]] ||
+    fail "DEPLOY_SSH_KEY 需指向可读取的私钥，使用绝对路径或 ~/ 开头的路径。"
+  SSH_OPTIONS+=(-o IdentitiesOnly=yes -i "$DEPLOY_SSH_KEY")
+fi
 if [[ "$DRY_RUN" == 0 ]]; then
   [[ -n "$DEPLOY_HOST" && -n "$DEPLOY_USER" && -n "$DEPLOY_PATH" ]] ||
     fail "请在本地 deploy-artifact.sh 中填写 DEPLOY_HOST、DEPLOY_USER 和 DEPLOY_PATH。"
@@ -154,6 +165,13 @@ if config.get('enabled') is not False or config.get('allow_remote_http', False) 
 PY_CHECK
 fi
 
+REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
+SSH_COMMAND=(ssh -p "$DEPLOY_PORT" "${SSH_OPTIONS[@]}")
+if [[ "$DRY_RUN" == 0 ]]; then
+  "${SSH_COMMAND[@]}" -T "$REMOTE" true </dev/null ||
+    fail "SSH 密钥登录失败。请核对本地脚本中的账号与私钥，并确认服务器已授权对应公钥。"
+fi
+
 ARTIFACT_PATH="$(mktemp "${TMPDIR:-/tmp}/guwenzi-$(date +%Y%m%d%H%M%S).XXXXXX")"
 OCR_ARTIFACT_PATH=""
 cleanup() {
@@ -163,7 +181,6 @@ cleanup() {
 trap cleanup EXIT
 RELEASE_ID="${ARTIFACT_PATH##*/}"
 REMOTE_ARTIFACT="/tmp/${RELEASE_ID}.tar.gz"
-REMOTE="${DEPLOY_USER}@${DEPLOY_HOST}"
 
 # COPYFILE_DISABLE 只处理 AppleDouble，仍需显式禁用 pax 扩展属性。
 TAR_METADATA_ARGS=(--no-xattrs --no-acls)
@@ -175,12 +192,12 @@ if [[ ( "$FULL" == 1 || "$WITH_OCR" == 1 ) && "$(tar --version)" == *bsdtar* ]];
 fi
 
 upload_artifact() {
-  scp -P "$DEPLOY_PORT" -o ConnectTimeout=15 -o LogLevel=INFO "$1" "${REMOTE}:$2"
+  scp -P "$DEPLOY_PORT" "${SSH_OPTIONS[@]}" -o LogLevel=INFO "$1" "${REMOTE}:$2"
 }
 
 run_ocr_remote() {
   # sudo 只用于明确选择的 OCR 部署；脚本通过 stdin 传入，不传递私有配置内容。
-  ssh -p "$DEPLOY_PORT" -o ConnectTimeout=15 "$REMOTE" \
+  "${SSH_COMMAND[@]}" "$REMOTE" \
     "if [ \"\$(id -u)\" = 0 ]; then bash -s -- '$1' '$DEPLOY_PATH' '$OCR_DEPLOY_PATH' '$OCR_CONFIG_PATH' '$OCR_SERVICE_NAME' '$OCR_PORT' '$RELEASE_ID' '$REMOTE_OCR_ARTIFACT'; else sudo -n bash -s -- '$1' '$DEPLOY_PATH' '$OCR_DEPLOY_PATH' '$OCR_CONFIG_PATH' '$OCR_SERVICE_NAME' '$OCR_PORT' '$RELEASE_ID' '$REMOTE_OCR_ARTIFACT'; fi" \
     < scripts/deploy-ocr-remote.sh
 }
@@ -220,7 +237,7 @@ if [[ "$FULL" == 0 ]]; then
   fi
 
   log "检查远端 rsync 和目标资源路径"
-  ssh -p "$DEPLOY_PORT" -o ConnectTimeout=15 "$REMOTE" \
+  "${SSH_COMMAND[@]}" "$REMOTE" \
     "bash -s -- '$DEPLOY_PATH' '$BACKUP_PATH' '$RELEASE_ID' '$PREVIEW'" <<'REMOTE_PREFLIGHT'
 set -Eeuo pipefail
 DEPLOY_PATH="$1"
@@ -244,12 +261,19 @@ if [[ "$PREVIEW" == 0 ]]; then
 fi
 REMOTE_PREFLIGHT
 
+  # rsync -e 解析自己的参数字符串。引号内用两个单引号表示字面单引号。
+  RSYNC_SSH=ssh
+  quote="'"
+  for argument in "${SSH_COMMAND[@]:1}"; do
+    escaped_argument=${argument//"$quote"/"$quote$quote"}
+    RSYNC_SSH+=" '$escaped_argument'"
+  done
   # 使用旧版 rsync/openrsync 也支持的选项，不传输扩展属性或 ACL。
   RSYNC_ARGS=(--recursive --times --omit-dir-times --checksum
     --itemize-changes --human-readable --progress --stats
     --backup "--backup-dir=${BACKUP_PATH}/${RELEASE_ID}"
     --exclude='.DS_Store' --exclude='._*' --exclude='.env' --exclude='.env.*' --exclude='.git'
-    -e "ssh -p ${DEPLOY_PORT} -o ConnectTimeout=15")
+    -e "$RSYNC_SSH")
   if [[ "$PREVIEW" == 1 ]]; then
     RSYNC_ARGS+=(--dry-run)
     log "预览增量变化（不修改远端文件）"
@@ -288,7 +312,7 @@ fi
 log "上传到 ${REMOTE}:${DEPLOY_PATH}（端口 ${DEPLOY_PORT}）"
 upload_artifact "$ARTIFACT_PATH" "$REMOTE_ARTIFACT"
 log "上传完成"
-ssh -p "$DEPLOY_PORT" -o ConnectTimeout=15 "$REMOTE" \
+"${SSH_COMMAND[@]}" "$REMOTE" \
   "bash -s -- '$DEPLOY_PATH' '$BACKUP_PATH' '$RELEASE_ID' '$REMOTE_ARTIFACT'" <<'REMOTE_SCRIPT'
 set -Eeuo pipefail
 DEPLOY_PATH="$1"
