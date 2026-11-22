@@ -54,7 +54,7 @@
     }).join('');
   }
   function paginate(){
-    const size = 60, pages = Math.max(1, Math.ceil(current.length / size));
+    const size = 100, pages = Math.max(1, Math.ceil(current.length / size));
     page = Math.max(0, Math.min(page, pages - 1));
     const cards = current.slice(page * size, (page + 1) * size).map(([ch,r]) => {
       const targets = core.matches(data,ch).filter(x => !x.reference).map(x => x.character);
